@@ -3,10 +3,13 @@ import { Canvas, useFrame, ThreeElements } from '@react-three/fiber';
 import Model from '../general/Model.js';
 import GlobalTimer from '../general/GlobalTimer';
 import PauseButton from '../buttons/PauseButton';
+import Subtitles from '../buttons/Subtitles';
+import { ServerUtility } from '../server/ServerUtility'; 
 import SceneJudgeAvatar from '../avatars/SceneJudgeAvatar';
 import BackToLandingButton from '../buttons/BackToLandingButton';
 import JudgeTimedSpeech from '../general/JudgeTimedSpeech';
 import '../ui/Captions.css';
+import Captions from '../ui/Captions';
 import PausedMenu from '../ui/PausedMenu';
 import AssessmentPage from '../ui/AssessmentPage';
 import React, { useRef } from 'react';
@@ -50,6 +53,17 @@ export default function GeneralScene({ setPaused, appConfig, appPaused, togglePa
     const targetObjectSun = new THREE.Object3D();
     // Set the position of the targetObject
     targetObjectSun.position.set(10, 0, -5);
+
+    const [serverMessage, setServerMessage] = useState(''); // State to hold the server message
+
+    useEffect(() => {
+        const socket = ServerUtility.initializeWebSocket();
+        socket.onmessage = function(event) {
+            const message = event.data;
+            setServerMessage(message); // Update state with the received message
+        };
+    }, []);
+
 
   // Extract the conversation elements from displayConversation useRef and update the state
         useEffect(() => {
@@ -143,7 +157,9 @@ export default function GeneralScene({ setPaused, appConfig, appPaused, togglePa
                 <div className="scene-controls">
                     <div className="scene-controls-inner">
                         <BackToLandingButton updateAppState={updateAppState} setPaused={setPaused} updateConfig={updateConfig}></BackToLandingButton>
+                        <Subtitles serverMessage={serverMessage}></Subtitles>
                         <PauseButton togglePause={togglePause}></PauseButton>
+                        {/* <Captions config={undefined}></Captions> */}
                         <GlobalTimer
                         hasAppIntroStarted={hasAppIntroStarted}
                         setHasAppIntroStarted={setHasAppIntroStarted}
