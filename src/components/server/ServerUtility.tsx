@@ -1,3 +1,6 @@
+import { timeThursday } from "d3";
+import { useMootCourtStore } from "../MootCourtState";
+
 enum AudioStreamType
 {
     Chunks,
@@ -9,6 +12,7 @@ export class ServerUtility
     static Blobs: Blob[] = [];
     static isAudioPlaying = false;
     static audioPlayer: HTMLAudioElement | null = null;
+    static accumulatedText =''
 
     static initializeWebSocket() : WebSocket
     {
@@ -60,6 +64,7 @@ export class ServerUtility
     static playResponseAsAudio (data: string | Blob | string[], audioPlaybackType: AudioStreamType = AudioStreamType.Chunks)
     {
         console.log("PlayResponseAsAudio called");
+        // console.log(data);
         let blobCounter = 0;
         if (data instanceof Blob)
         {
@@ -71,9 +76,30 @@ export class ServerUtility
             }
         }
 
-        if (typeof data === 'string' && data.includes("END") && audioPlaybackType === AudioStreamType.Stream)
+        
+
+        // if (typeof data === 'string' && data.includes("END") && audioPlaybackType === AudioStreamType.Stream)
+        if (typeof data === 'string')
+        
         {
-            ServerUtility.playBlobs();
+           
+            ServerUtility.accumulateText(data);
+        }
+    }
+
+    static accumulateText(chunk: string) {
+
+        if (!chunk) {
+            return;
+        }
+        this.accumulatedText += chunk;
+        const index = this.accumulatedText.indexOf("END[stop]~!~");
+        if (index !== -1) {
+            const textBeforeEnd = this.accumulatedText.substring(0, index);
+            console.log('hi', textBeforeEnd);
+            useMootCourtStore.getState().setSubtitles(textBeforeEnd) ;
+            // clear accumulated text after logging
+            this.accumulatedText = this.accumulatedText.substring(index + "END[stop]~!~".length);
         }
     }
 

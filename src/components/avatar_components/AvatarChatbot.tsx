@@ -3,15 +3,27 @@ import AnimationComponent from './AnimationComponent';
 import AudioComponent from './AudioComponent'
 import ConverseComponent from './ConverseComponent'
 
+import { useMootCourtStore } from '../MootCourtState';
+
 /*
  * A general purpose Avatar component that makes use of web speech synthesis and glb model loading (Model component). Parent can configure/play/puase animation and uses prop functions
  * to communicate speech synthesis ready, started speaking and finished speaking.
  */
 function Avatar({config, updateConfig, isSpeaking, setIsSpeaking, judgeElapsedTime, appPaused, position, rotation, modelUrl, textToSay, utteranceRepeat, readyToSpeak, animated, animationPause, startedSpeaking, finishedSpeaking }) {
+    // const [transcript, setTranscript] = useState('');
+    // const newSubtitles = useMootCourtStore((state) => state.setSubtitles)
+    // const handleTranscriptChange = (newTranscript) => {
+    //     setTranscript(newTranscript);
+    //     setSubtitles(newSubtitles);
+    // };
+
     const [transcript, setTranscript] = useState('');
+    const setSubtitles = useMootCourtStore((state) => state.setSubtitles)
     const handleTranscriptChange = (newTranscript) => {
         setTranscript(newTranscript);
+        setSubtitles(newTranscript);
     };
+
 
     return (<>
         <Suspense fallback={null}>

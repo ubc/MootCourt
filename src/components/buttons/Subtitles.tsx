@@ -1,17 +1,15 @@
 import { useEffect, useState } from 'react'
-import "../general/timer.css"
+import "../general/subtitles.css"
 import {Html} from '@react-three/drei'
-import PropTypes from 'prop-types'
-// import { message } from '../server/ServerUtility'
-
-function Subtitles({  serverMessage }) {
+import { useMootCourtStore } from '../MootCourtState'
+function Subtitles() {
     // internal check of pause state to change button setting
-    const [isPaused, setIsPaused] = useState(false)
+    const subtitles = useMootCourtStore((state) => state.subtitles)
 
     return <>
     {<div className={"subtitlesContainer sceneButtonContainer"}>
         <button className="subtitles-button">
-        {serverMessage}
+        {subtitles}
         </button>
     </div>}
     </>

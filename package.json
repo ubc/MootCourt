@@ -27,7 +27,8 @@
     "three": "^0.145.0",
     "types-web": "^0.1.19",
     "vosk-browser": "^0.0.8",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "zustand": "^4.5.2"
   },
   "scripts": {
     "start": "react-scripts start",

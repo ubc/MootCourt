@@ -38,26 +38,11 @@
     /* top: -3px; */
 }
 
-.sceneButtonContainer {
-    /* position: absolute; */
-    font-family: Roboto;
-    font-style: normal;
-    font-weight: normal;
-    font-size: 24px;
-    text-align: center;
-    margin-right: 5px;
-    /* width: 180px; */
-}
 .pauseContainer {
   flex: 1;
-  text-align: right;
+  text-align: center;
 }
 
-.subtitlesContainer {
-  flex: 1;
-  text-align: right;
-  color: blue;
-}
 
 
 .scene-button {
@@ -82,24 +67,6 @@
   background-color: white;
 }
 
-.subtitles-button {
-  background: white;
-  text-decoration: none;
-  /* width: 80%; */
-  justify-content: center;
-  border: 2px solid black;
-  color: black;
-  padding: 15px;
-  font-size: 24px;
-  transition: 0.4s;
-  border-radius: 100px;
-  padding: 5px 60px;
-  height: 56px;
-  white-space: nowrap;
-  align-self: end;
-  margin-right: 30px;
-}
-
 .scene-controls {
   width: 100vw;
   bottom: 0;
@@ -112,8 +79,10 @@
 .scene-controls-inner {
   /* width: 100vw;
   height: 100vh; */
+  position: absolute;
   display: flex;
   padding: 20px;
   flex-shrink: 1;
   align-self: bottom;
+  align-items: end;
 }

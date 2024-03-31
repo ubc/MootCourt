@@ -20,6 +20,8 @@ import './GeneralScene.css'; // Import your custom CSS file
 import {Html, PerspectiveCamera, useTexture} from "@react-three/drei"
 import { Vector3 } from 'three'; // Import Vector3 from three.js
 import * as THREE from 'three';
+import AudioComponent from '../avatar_components/AudioComponent';
+import { useMootCourtStore } from '../MootCourtState.jsx';
 
 const cameraPosition = new Vector3(0, 0, 5);
 const cameraFov = 48;
@@ -54,6 +56,13 @@ export default function GeneralScene({ setPaused, appConfig, appPaused, togglePa
     // Set the position of the targetObject
     targetObjectSun.position.set(10, 0, -5);
 
+    // const [transcript, setTranscript] = useState('');
+    // const setSubtitles = useMootCourtStore((state) => state.setSubtitles)
+    // const handleTranscriptChange = (newTranscript) => {
+    //     setTranscript(newTranscript);
+    //     setSubtitles(newTranscript);
+    // };
+
     const [serverMessage, setServerMessage] = useState(''); // State to hold the server message
 
     useEffect(() => {
@@ -63,7 +72,6 @@ export default function GeneralScene({ setPaused, appConfig, appPaused, togglePa
             setServerMessage(message); // Update state with the received message
         };
     }, []);
-
 
   // Extract the conversation elements from displayConversation useRef and update the state
         useEffect(() => {
@@ -157,7 +165,8 @@ export default function GeneralScene({ setPaused, appConfig, appPaused, togglePa
                 <div className="scene-controls">
                     <div className="scene-controls-inner">
                         <BackToLandingButton updateAppState={updateAppState} setPaused={setPaused} updateConfig={updateConfig}></BackToLandingButton>
-                        <Subtitles serverMessage={serverMessage}></Subtitles>
+                        <Subtitles></Subtitles>
+                        {/* <AudioComponent config={config} appPaused={appPaused} onTranscriptChange={handleTranscriptChange} elapsedTime={undefined}></AudioComponent> */}
                         <PauseButton togglePause={togglePause}></PauseButton>
                         {/* <Captions config={undefined}></Captions> */}
                         <GlobalTimer

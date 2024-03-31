@@ -2,6 +2,7 @@ import {Html} from "@react-three/drei";
 import React, {useEffect, useRef, useState} from "react";
 import Recorder from "../general/Recorder";
 import {createModel, KaldiRecognizer, Model} from 'vosk-browser';
+import "../general/timer.css"
 
 interface PushToTalkProps {
     onStartPushToTalk: () => void;
@@ -241,9 +242,10 @@ function AudioComponent({config, appPaused, onTranscriptChange, elapsedTime})
                 position: 'absolute',
                 marginLeft: '50vw',
                 marginRight: '50vw',
-                marginBottom: '50px',
-                scale: '2',
                 bottom: 0,
+                left: 900,
+                marginBottom: '30px',
+                scale: '2',
             }}>
 
                 <div style={{
