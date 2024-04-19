@@ -88,22 +88,19 @@ export class ServerUtility
     }
 
     static accumulateText(chunk: string) {
-
+ 
         if (!chunk) {
             return;
         }
         this.accumulatedText += chunk;
         const index = this.accumulatedText.indexOf("END[stop]~!~");
+        const unwantedSequence = "~!~";
         if (index !== -1) {
-            const textBeforeEnd = this.accumulatedText.substring(0, index);
+            let textBeforeEnd = this.accumulatedText.substring(0, index);
+            textBeforeEnd = textBeforeEnd.replace(unwantedSequence, "");
             console.log(textBeforeEnd);
             useMootCourtStore.getState().setSubtitles(textBeforeEnd) ;
-
-            // const cleanText = textBeforeEnd.replace('~!~', ' ');
-            // console.log('Processed text:', cleanText);
-            // // Set subtitles or further process the cleaned text
-            // useMootCourtStore.getState().setSubtitles(cleanText);
-
+ 
             // clear accumulated text after logging
             this.accumulatedText = this.accumulatedText.substring(index + "END[stop]~!~".length);
         }
@@ -124,6 +121,10 @@ export class ServerUtility
 
         audio.pause();
     }
+// const cleanText = textBeforeEnd.replace('~!~', ' ');
+            // console.log('Processed text:', cleanText);
+            // // Set subtitles or further process the cleaned text
+            // useMootCourtStore.getState().setSubtitles(cleanText);
 
     static playBlobs()
     {
