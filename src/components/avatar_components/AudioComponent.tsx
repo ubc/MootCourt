@@ -169,17 +169,20 @@ function AudioComponent({config, appPaused, onTranscriptChange, elapsedTime})
             newRecognizer.on("result", (message: any) => {
                 setUserInput(message.result.text);
                 const result: VoskResult = message.result;
-                for (let index = resultIndex; index < result.result.length; index++)
-                {
-                    const res = message.result.result[index];
-                    const word = res.word;
-                    const startTimeInMS = res.start * 1000;
-
-                    sendToAssessment(word, startTimeInMS);
-                    setResultIndex(resultIndex + 1);
+                if (!result.result) {
+                    console.error("Vosk result undefined");
+                }
+                else {
+                    for (let index = resultIndex; index < result.result.length; index++) {
+                        const res = message.result.result[index];
+                        const word = res.word;
+                        const startTimeInMS = res.start * 1000;
+ 
+                        sendToAssessment(word, startTimeInMS);
+                        setResultIndex(resultIndex + 1);
+                    }
                 }
             });
-
             setRecognizer(newRecognizer);
         };
 
