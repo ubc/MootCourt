@@ -96,8 +96,14 @@ export class ServerUtility
         const index = this.accumulatedText.indexOf("END[stop]~!~");
         if (index !== -1) {
             const textBeforeEnd = this.accumulatedText.substring(0, index);
-            console.log('hi', textBeforeEnd);
+            console.log(textBeforeEnd);
             useMootCourtStore.getState().setSubtitles(textBeforeEnd) ;
+
+            // const cleanText = textBeforeEnd.replace('~!~', ' ');
+            // console.log('Processed text:', cleanText);
+            // // Set subtitles or further process the cleaned text
+            // useMootCourtStore.getState().setSubtitles(cleanText);
+
             // clear accumulated text after logging
             this.accumulatedText = this.accumulatedText.substring(index + "END[stop]~!~".length);
         }

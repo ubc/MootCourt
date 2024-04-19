@@ -3,12 +3,15 @@
   border-radius: 30px;
   width: 60%;
   height: 75%;
-  margin: 4vh auto;
+  margin-bottom: 20vh;
+  margin-left: 38vh;
+  /* margin: 4vh auto; */
   padding: 5vh 5vw;
   box-sizing: border-box;
   display: flex; /* Add this */
   align-items: center; /* Add this */
   justify-content: center; /* Add this */
+  /* top: 10px; */
 
 }
 
