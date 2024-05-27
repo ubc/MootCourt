@@ -12,18 +12,25 @@ export class ServerUtility
     static Blobs: Blob[] = [];
     static isAudioPlaying = false;
     static audioPlayer: HTMLAudioElement | null = null;
-    static accumulatedText =''
+    static accumulatedText = ''
+    private static socket: WebSocket | null = null;
 
     static initializeWebSocket() : WebSocket
     {
-        const socket = new WebSocket('ws://127.0.0.1:60001');
-        socket.onopen = function(event)
+        if (this.socket && (this.socket.readyState === WebSocket.CONNECTING || this.socket.readyState === WebSocket.OPEN)) {
+            console.log('WebSocket is already open.');
+            return this.socket;
+        }
+
+
+        this.socket = new WebSocket('ws://99.79.195.101:8889');
+        this.socket.onopen = function(event)
         {
             //socket.send('authorization_request secret_password');
             console.log('WebSocket connection opened:', event);
         };
 
-        socket.onclose = function(event)
+        this.socket.onclose = function(event)
         {
             if (event.wasClean)
             {
@@ -36,12 +43,12 @@ export class ServerUtility
 
         };
 
-        socket.onerror = function(error)
+        this.socket.onerror = function(error)
         {
             console.error('WebSocket error:', error);
         };
 
-        return socket;
+        return this.socket;
     }
 
     static sendMessageToServer(socket: WebSocket, message: string): void
