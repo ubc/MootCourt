@@ -210,8 +210,19 @@ function AudioComponent({config, appPaused, onTranscriptChange, elapsedTime})
             return;
         }
 
-        recognizer.acceptWaveform(await blobToAudioBuffer(audioBlob));
-        recognizer.retrieveFinalResult();
+        try {
+            const audioBuffer = await blobToAudioBuffer(audioBlob);
+            recognizer.acceptWaveform(audioBuffer);
+            recognizer.retrieveFinalResult();
+        } catch (error) {
+            console.error('Error processing audio waveform:', error);
+            console.error('This usually happens when microphone permissions are invalid. It _should_ only happen the first time. Refreshing...');
+            window.location.reload();
+
+            // Handle the error gracefully, such as logging or displaying a message to the user
+        }
+        //recognizer.acceptWaveform(await blobToAudioBuffer(audioBlob));
+        //recognizer.retrieveFinalResult();
 
         setMicIcon(micMute);
     };

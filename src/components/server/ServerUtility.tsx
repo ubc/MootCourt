@@ -105,12 +105,16 @@ export class ServerUtility
         if (index !== -1) {
             let textBeforeEnd = this.accumulatedText.substring(0, index);
             textBeforeEnd = textBeforeEnd.replace(unwantedSequence, "");
+            textBeforeEnd = textBeforeEnd.replace("~!~", "");
             console.log(textBeforeEnd);
             useMootCourtStore.getState().setSubtitles(textBeforeEnd) ;
  
             // clear accumulated text after logging
             this.accumulatedText = this.accumulatedText.substring(index + "END[stop]~!~".length);
+            
         }
+
+        
     }
 
     static pauseOrResumeAudioResponse()
