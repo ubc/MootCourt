@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Center, Html } from '@react-three/drei'
 import PropTypes from 'prop-types'
 import './LandingPage.css';
@@ -114,7 +114,12 @@ function decrementNumber(element) {
 }
 
 
+
 function LandingPageMenu({updateAppState, updateConfig, config}) {
+    //Microphone Request
+    const [stream, setStream] = useState<MediaStream | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
     // AppState : const Scene = 1
     // !!Inputs can come in the form of minutes, but config time is always stored as seconds!!
 
@@ -192,13 +197,43 @@ function LandingPageMenu({updateAppState, updateConfig, config}) {
         updateConfig({...config, isInteliJudge: false})
         console.log("Classic enabled.")
     }
-    
-    const pressIntelliJudge = () => {
+
+    const pressIntelliJudge = async () => {
         resetDisplayedUI("Difficulty", "Position");
-        updateConfig({...config, isInteliJudge: true})
-        console.log("IntelliJudge enabled.")
-        window.alert("This is the IntelliJudge version. Please note that, as of now, it has not undergone thorough testing, and we cannot guarantee its full functionality. You may encounter unexpected behavior or issues while using this version")
+        updateConfig({...config, isInteliJudge: true});
+        console.log("IntelliJudge enabled.");
+
+        
+
+        window.alert("This is the IntelliJudge version. Please note that, as of now, it has not undergone thorough testing, and we cannot guarantee its full functionality. You may encounter unexpected behavior or issues while using this version.\n\nIntelliJudge needs your permission to access your microphone to function properly.");
+        
+        try {
+            const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            setStream(audioStream);
+        } catch (err) {
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError('An unknown error occurred');
+            }
+        }
+        
     }
+    
+   // const pressIntelliJudge = () => {
+   //     resetDisplayedUI("Difficulty", "Position");
+   //     updateConfig({...config, isInteliJudge: true})
+   //     console.log("IntelliJudge enabled.")
+   //     
+   //     try {
+   //         const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+   //         setStream(audioStream);
+   //     } catch (err) {
+   //         setError(err.message);
+   //     }
+   //
+   //     window.alert("This is the IntelliJudge version. Please note that, as of now, it has not undergone thorough testing, and we cannot guarantee its full functionality. You may encounter unexpected behavior or issues while using this version.\n\nIntellijudge needs your permission to access your microphone to function properly.")
+   // }
 
     function pressBackFromTimer() {
         if(config.isInteliJudge){
@@ -231,6 +266,7 @@ function LandingPageMenu({updateAppState, updateConfig, config}) {
     //       event.preventDefault();
     //     }
     //   }
+
 
     return <>
         {<div className="logoOverlay">
