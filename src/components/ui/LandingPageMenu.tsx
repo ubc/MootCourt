@@ -203,10 +203,9 @@ function LandingPageMenu({updateAppState, updateConfig, config}) {
         updateConfig({...config, isInteliJudge: true});
         console.log("IntelliJudge enabled.");
 
-        
-
         window.alert("This is the IntelliJudge version. Please note that, as of now, it has not undergone thorough testing, and we cannot guarantee its full functionality. You may encounter unexpected behavior or issues while using this version.\n\nIntelliJudge needs your permission to access your microphone to function properly.");
-        
+
+        // Requesting access to Microphone        
         try {
             const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             setStream(audioStream);
@@ -220,20 +219,6 @@ function LandingPageMenu({updateAppState, updateConfig, config}) {
         
     }
     
-   // const pressIntelliJudge = () => {
-   //     resetDisplayedUI("Difficulty", "Position");
-   //     updateConfig({...config, isInteliJudge: true})
-   //     console.log("IntelliJudge enabled.")
-   //     
-   //     try {
-   //         const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-   //         setStream(audioStream);
-   //     } catch (err) {
-   //         setError(err.message);
-   //     }
-   //
-   //     window.alert("This is the IntelliJudge version. Please note that, as of now, it has not undergone thorough testing, and we cannot guarantee its full functionality. You may encounter unexpected behavior or issues while using this version.\n\nIntellijudge needs your permission to access your microphone to function properly.")
-   // }
 
     function pressBackFromTimer() {
         if(config.isInteliJudge){
