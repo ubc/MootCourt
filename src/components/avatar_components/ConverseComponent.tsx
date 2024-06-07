@@ -9,9 +9,25 @@ export default function ConverseComponent({setIsSpeaking, appPaused, config, upd
     const isAISpeaking = ServerUtility.isAudioPlaying;
 
     // TODO: Move Websocket initialization to before User clicks "Start"
+    // Initialize WebSocket
     useEffect(() => {
         socket = ServerUtility.initializeWebSocket();
         setSocketReady(true);
+
+        // Setup heartbeat
+        const heartbeatInterval = setInterval(() => {
+            if (socket.readyState === WebSocket.OPEN) {
+                socket.send("[HCK]");
+            }
+        }, 50000); // 50 seconds
+
+        // Cleanup on unmount
+        return () => {
+            clearInterval(heartbeatInterval);
+            if (socket) {
+                socket.close();
+            }
+        };
     }, []);
 
     useEffect(() => {
