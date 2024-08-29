@@ -254,11 +254,14 @@ function AudioComponent({config, appPaused, onTranscriptChange, elapsedTime})
                 border: '2px solid black',
                 borderRadius: '50px',
                 position: 'absolute',
-                marginLeft: '50vw',
-                marginRight: '50vw',
-                bottom: 0,
-                left: 900,
-                marginBottom: '30px',
+                marginLeft: '30px',
+                marginRight: '30px',
+                // bottom: 0,
+                // left: 900,
+                
+                right: 0,  // Position it on the right side
+                bottom: 0,  // Position it at the bottom
+                marginBottom: '35px',
                 scale: '2',
             }}>
 
