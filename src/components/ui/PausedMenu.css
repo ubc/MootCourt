@@ -3,12 +3,14 @@
   border-radius: 30px;
   width: 60%;
   height: 75%;
+  display: flex;
   margin-bottom: 20vh;
-  margin-left: 38vh;
+  margin-left: calc(50% - 30%); /* 50% centers the left side, and -30% moves the element left by half its width */
+
+  /* margin-left: 38vh; */
   /* margin: 4vh auto; */
   padding: 5vh 5vw;
   box-sizing: border-box;
-  display: flex; /* Add this */
   align-items: center; /* Add this */
   justify-content: center; /* Add this */
   /* top: 10px; */
