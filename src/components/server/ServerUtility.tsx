@@ -20,7 +20,8 @@ export class ServerUtility {
         }
 
 
-        this.socket = new WebSocket('wss://moot-api.ubc-dxl.ca:8899');
+        //this.socket = new WebSocket('wss://moot-api.ubc-dxl.ca:8899');
+        this.socket = new WebSocket('ws://127.0.0.1:8889');
         this.socket.onopen = function (event) {
             //socket.send('authorization_request secret_password');
             console.log('WebSocket connection opened:', event);
@@ -39,7 +40,7 @@ export class ServerUtility {
         this.socket.onerror = function (error) {
             console.error('WebSocket error:', error);
         };
-
+        useMootCourtStore.getState().setInputLock(false);
         return this.socket;
     }
 
@@ -127,7 +128,11 @@ export class ServerUtility {
     static playBlobsSequentially(index: number) {
         console.log("Playing Blobs Sequentially");
         const data = ServerUtility.Blobs;
-        if (index >= data.length) {
+        const setInputLock = useMootCourtStore.getState().setInputLock;
+
+        if (data.length === 0) {
+            // No more blobs to play, unlock the input
+            setInputLock(false);
             return;
         }
 
@@ -138,15 +143,60 @@ export class ServerUtility {
         ServerUtility.isAudioPlaying = true;
 
         ServerUtility.audioPlayer.addEventListener("ended", () => {
-            data.splice(index, 1);
             URL.revokeObjectURL(audioUrl);
+            data.splice(index, 1); // Remove the played blob
+
             ServerUtility.isAudioPlaying = false;
-            ServerUtility.playBlobsSequentially(index);
+
+            if (data.length === 0) {
+                // Unlock input after the last blob has been played
+                console.log("All audio blobs have been played. Unlocking input.");
+                setInputLock(false);
+            } else {
+                // Play the next blob
+                ServerUtility.playBlobsSequentially(0); // Always start from the first index after splicing
+            }
         });
 
-        ServerUtility.audioPlayer.play()
-            .catch((error) => {
-                console.error("Error playing audio: ", error);
-            });
+        ServerUtility.audioPlayer.play().catch((error) => {
+            console.error("Error playing audio: ", error);
+            setInputLock(false); // Ensure input is unlocked in case of an error
+        });
     }
+
+    //static playBlobsSequentially(index: number) {
+    //    console.log("Playing Blobs Sequentially");
+    //    const data = ServerUtility.Blobs;
+
+    //    const setInputLock = useMootCourtStore.getState().setInputLock;
+
+    //    if (index >= data.length) {
+    //        setInputLock(false);
+    //        return;
+    //    }
+
+    //    const audioData = data[index];
+    //    const audioUrl = URL.createObjectURL(audioData);
+    //    ServerUtility.audioPlayer = new Audio(audioUrl);
+
+    //    ServerUtility.isAudioPlaying = true;
+
+    //    ServerUtility.audioPlayer.addEventListener("ended", () => {
+    //        data.splice(index, 1);
+    //        URL.revokeObjectURL(audioUrl);
+    //        ServerUtility.isAudioPlaying = false;
+
+    //        if (index + 1 >= data.length) {
+    //            setInputLock(false); // Unlock input after the last blob
+    //        }
+
+    //        ServerUtility.playBlobsSequentially(index);
+    //    });
+
+    //    ServerUtility.audioPlayer.play()
+    //        .catch((error) => {
+    //            console.error("Error playing audio: ", error);
+    //            setInputLock(false);
+    //        });
+    //}
 }

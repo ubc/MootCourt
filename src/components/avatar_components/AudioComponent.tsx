@@ -1,90 +1,195 @@
-import {Html} from "@react-three/drei";
-import React, {useEffect, useRef, useState} from "react";
+import { Html } from "@react-three/drei";
+import React, { useEffect, useRef, useState } from "react";
 import Recorder from "../general/Recorder";
-import {createModel, KaldiRecognizer, Model} from 'vosk-browser';
+import { createModel, KaldiRecognizer, Model } from 'vosk-browser';
 import "../general/timer.css"
+import { useMootCourtStore } from "../MootCourtState";
+import { color } from "d3";
 
 interface PushToTalkProps {
     onStartPushToTalk: () => void;
     onStopPushToTalk: (audioBlob: Blob) => void;
     elapsedTime: number;
+    onRecordingStateChange: (isRecording: boolean) => void;
 }
 
-const PushToTalk = ({onStartPushToTalk, onStopPushToTalk, elapsedTime} : PushToTalkProps) =>
-{
-    const [isEnterHeld, setEnterHeld] = useState(false);
+const PushToTalk = ({ onStartPushToTalk, onStopPushToTalk, elapsedTime, onRecordingStateChange }: PushToTalkProps) => {
+    const isInputLocked = useMootCourtStore((state) => state.isInputLocked);
     const [isRecording, setIsRecording] = useState(false);
     const recorder = useRef<Recorder | null>(null);
+    const [isEnterPressed, setIsEnterPressed] = useState(false);
 
     useEffect(() => {
-       recorder.current = new Recorder();
-       return () => {
-           if (recorder.current)
-           {
-               recorder.current.cleanup();
-           }
-       }
-    }, []);
-
-    const handleKeyDown = (event) => {
-        if (event.key !== 'Enter')
-        {
-            return;
-        }
-
-        setEnterHeld(true);
-        if (!isRecording)
-        {
-            setIsRecording(true);
-        }
-    };
-
-    const handleKeyUp = (event) => {
-        if (event.key !== 'Enter')
-        {
-            return;
-        }
-
-        setEnterHeld(false);
-        setIsRecording(false);
-    }
-
-    useEffect(() =>
-    {
-        window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('keyup', handleKeyUp);
-        return () =>
-        {
-            window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('keyup', handleKeyUp);
+        recorder.current = new Recorder();
+        return () => {
+            if (recorder.current) {
+                recorder.current.cleanup();
+            }
         };
     }, []);
 
-    useEffect(() => {
-        if (!recorder.current)
-        {
-            console.error("Did you instantiate recorder?");
+    const toggleRecording = async () => {
+        if (isInputLocked) {
+            console.warn("Input is locked. Cannot start or stop recording.");
+            return; // Prevent any recording actions if input is locked
+        }
+
+        if (!recorder.current) {
+            console.error("Recorder not initialized.");
             return;
         }
 
-        if (isEnterHeld)
-        {
-            recorder.current.startRecording();
-            onStartPushToTalk();
-        }else
-        {
-            if (recorder.current.mediaRecorder)
-            {
+
+        if (isRecording) {
+            // Stop recording
+            setIsRecording(false);
+            onRecordingStateChange(false); // Notify parent
+            if (recorder.current.mediaRecorder) {
                 recorder.current.stopRecording();
             }
-            onStopPushToTalk(recorder.current.getRecording());
+            const audioBlob = recorder.current.getRecording();
+            if (audioBlob) {
+                onStopPushToTalk(audioBlob);
+            }
+        } else {
+            // Start recording
+            setIsRecording(true);
+            onRecordingStateChange(true); 
+            recorder.current.startRecording();
+            onStartPushToTalk();
         }
-    }, [isEnterHeld]);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+        if (event.key === "Enter" && !isEnterPressed) {
+            setIsEnterPressed(true); // Prevent repeated triggers
+            toggleRecording();
+        }
+
+        
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+        if (event.key === "Enter") {
+            setIsEnterPressed(false); // Reset the key state when released
+        }
+    };
+
+
+    useEffect(() => {
+        window.addEventListener("keydown", handleKeyDown);
+        window.addEventListener("keyup", handleKeyUp);
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+            window.removeEventListener("keyup", handleKeyUp);
+        };
+    }, [isInputLocked, isRecording, isEnterPressed]); // Include isRecording in the dependency array to ensure the toggle works correctly.
+
+    return null;
 
     return (
-        <div></div>
+        <div
+            style={{
+                cursor: isInputLocked ? "not-allowed" : "pointer", // Respect lock for visual feedback
+                padding: "10px",
+                backgroundColor: isInputLocked
+                    ? "gray" // Gray when locked
+                    : isRecording
+                        ? "red" // Red when actively recording
+                        : "green", // Green when idle and ready to record
+                color: "white",
+                borderRadius: "50%",
+                textAlign: "center",
+                width: "50px",
+                height: "50px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+            }}
+            onClick={!isInputLocked ? toggleRecording : undefined} // Disable click when locked
+            role="button"
+            tabIndex={0}
+        >
+            {isInputLocked ? "Locked" : isRecording ? "Stop" : "Start"}
+        </div>
     );
-}
+};
+
+//const PushToTalk = ({onStartPushToTalk, onStopPushToTalk, elapsedTime} : PushToTalkProps) =>
+//{
+//    const [isEnterHeld, setEnterHeld] = useState(false);
+//    const [isRecording, setIsRecording] = useState(false);
+//    const recorder = useRef<Recorder | null>(null);
+
+//    useEffect(() => {
+//       recorder.current = new Recorder();
+//       return () => {
+//           if (recorder.current)
+//           {
+//               recorder.current.cleanup();
+//           }
+//       }
+//    }, []);
+
+//    const handleKeyDown = (event) => {
+//        if (event.key !== 'Enter')
+//        {
+//            return;
+//        }
+
+//        setEnterHeld(true);
+//        if (!isRecording)
+//        {
+//            setIsRecording(true);
+//        }
+//    };
+
+//    const handleKeyUp = (event) => {
+//        if (event.key !== 'Enter')
+//        {
+//            return;
+//        }
+
+//        setEnterHeld(false);
+//        setIsRecording(false);
+//    }
+
+//    useEffect(() =>
+//    {
+//        window.addEventListener('keydown', handleKeyDown);
+//        window.addEventListener('keyup', handleKeyUp);
+//        return () =>
+//        {
+//            window.removeEventListener('keydown', handleKeyDown);
+//            window.removeEventListener('keyup', handleKeyUp);
+//        };
+//    }, []);
+
+//    useEffect(() => {
+//        if (!recorder.current)
+//        {
+//            console.error("Did you instantiate recorder?");
+//            return;
+//        }
+
+//        if (isEnterHeld)
+//        {
+//            recorder.current.startRecording();
+//            onStartPushToTalk();
+//        }else
+//        {
+//            if (recorder.current.mediaRecorder)
+//            {
+//                recorder.current.stopRecording();
+//            }
+//            onStopPushToTalk(recorder.current.getRecording());
+//        }
+//    }, [isEnterHeld]);
+
+//    return (
+//        <div></div>
+//    );
+//}
 
 //----------------------------------------------------------------------------------------------------------------------
 //
@@ -99,12 +204,11 @@ interface VoskResult {
     text: string;
 }
 
-function AudioComponent({config, appPaused, onTranscriptChange, elapsedTime})
-{
+function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) {
     //----------------------------------------------------------------------------------------------------------------------
     // TODO: Move these into one big asset file, consolidate the other assets in the project
     //----------------------------------------------------------------------------------------------------------------------
-    const micNormal = <svg
+    const micReady = <svg
         width="24px"
         height="24px"
         strokeWidth="1.5"
@@ -112,56 +216,100 @@ function AudioComponent({config, appPaused, onTranscriptChange, elapsedTime})
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         color="#000000">
-        <rect x="9" y="2" width="6" height="12" rx="3" stroke="#000000" strokeWidth="1.5"/>
+        <rect x="9" y="2" width="6" height="12" rx="3" stroke="#000000" strokeWidth="1.5" />
         <path d="M5 10v1a7 7 0 007 7v0a7 7 0 007-7v-1M12 18v4m0 0H9m3 0h3"
-              stroke="#000000"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"/>
+            stroke="#000000"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round" />
     </svg>
 
-    const micMute = <svg
+    const micRecording = <svg
         width="24px"
         height="24px"
         strokeWidth="1.5"
         viewBox="0 0 24 24"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        color="#000000">
-        <path d="M3 3l18 18M9 9v0a5 5 0 005 5v0m1-3.5V5a3 3 0 00-3-3v0a3 3 0 00-3 3v.5"
-              stroke="#000000"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"/>
+        color="#228B22">
+        <rect x="9" y="2" width="6" height="12" rx="3" stroke="#228B22" strokeWidth="1.5" />
         <path d="M5 10v1a7 7 0 007 7v0a7 7 0 007-7v-1M12 18v4m0 0H9m3 0h3"
-              stroke="#000000"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"/>
+            stroke="#228B22"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round" />
     </svg>
+
+    const micWaiting = <svg
+        width="24px"
+        height="24px"
+        strokeWidth="1.5"
+        viewBox="0 0 24 24"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        color="#FA5F55">
+        <rect x="9" y="2" width="6" height="12" rx="3" stroke="#FA5F55" strokeWidth="1.5" />
+        <path d="M5 10v1a7 7 0 007 7v0a7 7 0 007-7v-1M12 18v4m0 0H9m3 0h3"
+            stroke="#FA5F55"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round" />
+    </svg>
+
+    //const micMute = <svg
+    //    width="24px"
+    //    height="24px"
+    //    strokeWidth="1.5"
+    //    viewBox="0 0 24 24"
+    //    fill="none"
+    //    xmlns="http://www.w3.org/2000/svg"
+    //    color="#000000">
+    //    <path d="M3 3l18 18M9 9v0a5 5 0 005 5v0m1-3.5V5a3 3 0 00-3-3v0a3 3 0 00-3 3v.5"
+    //        stroke="#000000"
+    //        strokeWidth="1.5"
+    //        strokeLinecap="round"
+    //        strokeLinejoin="round" />
+    //    <path d="M5 10v1a7 7 0 007 7v0a7 7 0 007-7v-1M12 18v4m0 0H9m3 0h3"
+    //        stroke="#000000"
+    //        strokeWidth="1.5"
+    //        strokeLinecap="round"
+    //        strokeLinejoin="round" />
+    //</svg>
 
     //----------------------------------------------------------------------------------------------------------------------
     //
     //----------------------------------------------------------------------------------------------------------------------
 
     const [userInput, setUserInput] = useState('');
-    const [micIcon, setMicIcon] = useState<JSX.Element>(micMute);
+    const [micIcon, setMicIcon] = useState<JSX.Element>(micReady);
     const [loadedModel, setLoadedModel] = useState<{ model: Model; }>();
     const [recognizer, setRecognizer] = useState<KaldiRecognizer>();
     const [resultIndex, setResultIndex] = useState(0);
+    const isInputLocked = useMootCourtStore((state) => state.isInputLocked);
+    const setInputLock = useMootCourtStore((state) => state.setInputLock);
 
     const conversation = useRef<Array<any>>([]);
     const runningTimestamps = useRef<Array<any>>([]);
 
+    const handleRecordingStateChange = (isRecording: boolean) => {
+        if (isInputLocked) {
+            setMicIcon(micWaiting);
+        } else if (isRecording) {
+            setMicIcon(micRecording);
+        } else {
+            setMicIcon(micReady);
+        }
+    };
+
+
     useEffect(() => {
-        const loadModel = async () =>
-        {
+        const loadModel = async () => {
             loadedModel?.model.terminate();
             const currentURL = window.location.href;
             // Note: To enable logs from vosk-browser, change the second parameter of createModel to 0
             const model = await createModel(`${currentURL}models/vosk-model-small-en-us-0.15.tar.gz`, -1);
 
-            setLoadedModel({model});
+            setLoadedModel({ model });
 
             const newRecognizer = new model.KaldiRecognizer(48000);
             newRecognizer.setWords(true);
@@ -177,7 +325,7 @@ function AudioComponent({config, appPaused, onTranscriptChange, elapsedTime})
                         const res = message.result.result[index];
                         const word = res.word;
                         const startTimeInMS = res.start * 1000;
- 
+
                         sendToAssessment(word, startTimeInMS);
                         setResultIndex(resultIndex + 1);
                     }
@@ -196,7 +344,7 @@ function AudioComponent({config, appPaused, onTranscriptChange, elapsedTime})
     }, []);
 
     const handleStartPTT = () => {
-        setMicIcon(micNormal);
+        setMicIcon(micRecording);
     };
 
     const handleStopPTT = async (audioBlob: Blob) => {
@@ -204,9 +352,12 @@ function AudioComponent({config, appPaused, onTranscriptChange, elapsedTime})
             return;
         }
 
-        if (!recognizer)
-        {
+        const setInputLock = useMootCourtStore.getState().setInputLock;
+        setInputLock(true);
+
+        if (!recognizer) {
             console.error("Did you instantiate the speech recognizer?");
+            setInputLock(false);
             return;
         }
 
@@ -218,24 +369,40 @@ function AudioComponent({config, appPaused, onTranscriptChange, elapsedTime})
             console.error('Error processing audio waveform:', error);
             console.error('This usually happens when microphone permissions are invalid. It _should_ only happen the first time. Refreshing...');
             window.location.reload();
+            setInputLock(false);
+            setMicIcon(micReady);
 
             // Handle the error gracefully, such as logging or displaying a message to the user
         }
         //recognizer.acceptWaveform(await blobToAudioBuffer(audioBlob));
         //recognizer.retrieveFinalResult();
 
-        setMicIcon(micMute);
+        if (useMootCourtStore.getState().isInputLocked) {
+            setMicIcon(micWaiting);
+        }
+        else {
+            setMicIcon(micReady);
+        }
+
+
     };
 
     useEffect(() => {
-        if (userInput.length > 0)
-        {
+        if (userInput.length > 0) {
             onTranscriptChange(userInput);
         }
     }, [userInput]);
 
-    const sendToAssessment = (transcript, startTime) =>
-    {
+    useEffect(() => {
+        // Ensure micIcon updates when isInputLocked changes
+        if (isInputLocked) {
+            setMicIcon(micWaiting);
+        } else {
+            setMicIcon(micReady);
+        }
+    }, [isInputLocked]); // Dependency on isInputLocked
+
+    const sendToAssessment = (transcript, startTime) => {
         runningTimestamps.current.push([transcript, startTime]);
         config.runningTimestamps = runningTimestamps.current;
         conversation.current = createConversation(conversation.current, 'user', transcript);
@@ -245,7 +412,7 @@ function AudioComponent({config, appPaused, onTranscriptChange, elapsedTime})
     return (
         <Html fullscreen>
             {!appPaused && (
-                <PushToTalk onStartPushToTalk={handleStartPTT} onStopPushToTalk={handleStopPTT} elapsedTime={elapsedTime}></PushToTalk>)
+                <PushToTalk onStartPushToTalk={handleStartPTT} onStopPushToTalk={handleStopPTT} elapsedTime={elapsedTime} onRecordingStateChange={handleRecordingStateChange}></PushToTalk>)
             }
             <div className='micIndicatorContainer' style={{
                 backgroundColor: 'white',
@@ -258,7 +425,7 @@ function AudioComponent({config, appPaused, onTranscriptChange, elapsedTime})
                 marginRight: '30px',
                 // bottom: 0,
                 // left: 900,
-                
+
                 right: 0,  // Position it on the right side
                 bottom: 0,  // Position it at the bottom
                 marginBottom: '35px',
@@ -289,7 +456,7 @@ export default AudioComponent;
  * @returns List of OpenAI conversation messages
  */
 function createConversation(conversation: Array<object>, role: string, content: string): Array<any> {
-    let message = {role: role, content: content};
+    let message = { role: role, content: content };
     let messages = [...conversation]
     messages.push(message);
     return messages;
