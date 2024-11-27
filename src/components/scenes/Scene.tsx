@@ -13,6 +13,7 @@ import Captions from '../ui/Captions';
 import PausedMenu from '../ui/PausedMenu';
 import AssessmentPage from '../ui/AssessmentPage';
 import React, { useRef } from 'react';
+import { Profiler } from "react";
 
 import '../ui/Captions.css';
 import './GeneralScene.css'; // Import your custom CSS file
@@ -25,6 +26,18 @@ import { useMootCourtStore } from '../MootCourtState.jsx';
 
 const cameraPosition = new Vector3(0, 0, 5);
 const cameraFov = 48;
+
+const onRenderCallback = (
+    id, // ID of the component being rendered
+    phase, // "mount" or "update"
+    actualDuration, // Time spent rendering the component
+    baseDuration, // Time spent rendering when nothing is memoized
+    startTime, // When React started rendering
+    commitTime, // When React committed the render
+    interactions // The interactions belonging to this update
+) => {
+    console.log(`[${id}] ${phase} took ${actualDuration}ms`);
+};
 
 export default function GeneralScene({ setPaused, appConfig, appPaused, togglePause, updateAppState, updateConfig, judgeElapsedTime, setJudgeElapsedTime}) {
     // Scene Specific Elements are stored here
@@ -79,6 +92,7 @@ export default function GeneralScene({ setPaused, appConfig, appPaused, togglePa
         }, [displayConversation.current]);
             
     return (
+        <Profiler id="GeneralScene" onRender={onRenderCallback}>
             <Canvas
                 camera={{
                     position: cameraPosition,
@@ -197,6 +211,6 @@ export default function GeneralScene({ setPaused, appConfig, appPaused, togglePa
                 </div>
                 </Html>
             </Canvas>
-
+        </Profiler>
     )
 }

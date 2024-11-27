@@ -134,7 +134,7 @@ function GlobalTimer({hasAppIntroStarted, setHasAppIntroStarted, isAppInIntro, s
                     setLightColor("#199E54")
                 }
             }
-            setJudgeElapsedTime(judgeElapsedTime + elapsedTime)
+            //setJudgeElapsedTime(judgeElapsedTime + elapsedTime)
             // Calculate the remaining time after each tick
             setCurrentTime(prevTime => prevTime - elapsedTime)
         } else {
@@ -143,7 +143,7 @@ function GlobalTimer({hasAppIntroStarted, setHasAppIntroStarted, isAppInIntro, s
         }
     }, [updateTimerInterval])
 
- 
+    
 
     // If interval should be reset, this function runs.
     useEffect(() => {
@@ -160,13 +160,13 @@ function GlobalTimer({hasAppIntroStarted, setHasAppIntroStarted, isAppInIntro, s
         const timeUpdateInterval = window.setInterval(() => {
             setUpdateTimerInterval(prevUpdate => !prevUpdate)
         }, 1000)
+
     }, [])
 
     // calculate elapsed time between each tick
     useEffect(() => {
         setElapsedTime(Date.now() - previousTime);
         setPreviousTime(Date.now());
-        // console.log("current time", currentTime)
     }, [updateTimerInterval])
 
     // if no negative time is set to true, return to landing page

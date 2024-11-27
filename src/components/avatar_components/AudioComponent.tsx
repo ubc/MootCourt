@@ -115,6 +115,7 @@ const PushToTalk = ({ onStartPushToTalk, onStopPushToTalk, elapsedTime, onRecord
     );
 };
 
+// Previous implementation (Enter Held)
 //const PushToTalk = ({onStartPushToTalk, onStopPushToTalk, elapsedTime} : PushToTalkProps) =>
 //{
 //    const [isEnterHeld, setEnterHeld] = useState(false);
@@ -319,6 +320,7 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
                 const result: VoskResult = message.result;
                 if (!result.result) {
                     console.error("Vosk result undefined");
+                    setInputLock(false);
                 }
                 else {
                     for (let index = resultIndex; index < result.result.length; index++) {
@@ -352,7 +354,6 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
             return;
         }
 
-        const setInputLock = useMootCourtStore.getState().setInputLock;
         setInputLock(true);
 
         if (!recognizer) {
@@ -363,6 +364,14 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
 
         try {
             const audioBuffer = await blobToAudioBuffer(audioBlob);
+
+            if (!audioBuffer || audioBuffer.length === 0) {
+                console.warn("Silent audio detected. Unlocking input.");
+                setInputLock(false); // Unlock input for silent audio
+                return;
+            }
+
+
             recognizer.acceptWaveform(audioBuffer);
             recognizer.retrieveFinalResult();
         } catch (error) {
