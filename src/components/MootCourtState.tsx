@@ -9,6 +9,8 @@ interface MootCourtState {
     setSubtitles: (newSubtitles: string) => void
     isInputLocked: boolean // Add a state for the input lock
     setInputLock: (locked: boolean) => void // Add an action to toggle the lock
+    isRecognizerReady: boolean
+    setRecognizerReady: (ready: boolean) => void
 }
 
 
@@ -22,6 +24,8 @@ export const useMootCourtStore = create<MootCourtState>()(
                 setSubtitles: (newSubtitles) => set((state) => ({ subtitles: newSubtitles })),
                 isInputLocked: false, // Initialize the input lock as false
                 setInputLock: (locked) => set(() => ({ isInputLocked: locked })),
+                isRecognizerReady: false,
+                setRecognizerReady: (ready) => set(() => ({isRecognizerReady: ready})),
             }),
             {
                 name: 'mootcourt-storage',

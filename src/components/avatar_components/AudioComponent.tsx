@@ -18,6 +18,7 @@ const PushToTalk = ({ onStartPushToTalk, onStopPushToTalk, elapsedTime, onRecord
     const [isRecording, setIsRecording] = useState(false);
     const recorder = useRef<Recorder | null>(null);
     const [isEnterPressed, setIsEnterPressed] = useState(false);
+    const isRecognizerReady = useMootCourtStore((state) => state.isRecognizerReady);
 
     useEffect(() => {
         recorder.current = new Recorder();
@@ -25,10 +26,13 @@ const PushToTalk = ({ onStartPushToTalk, onStopPushToTalk, elapsedTime, onRecord
             if (recorder.current) {
                 recorder.current.cleanup();
             }
+            useMootCourtStore.getState().setRecognizerReady(false);
+            useMootCourtStore.getState().setInputLock(false);
         };
     }, []);
 
     const toggleRecording = async () => {
+        console.log("isRecognizerReady: " + useMootCourtStore.getState().isRecognizerReady);
         if (isInputLocked) {
             console.warn("Input is locked. Cannot start or stop recording.");
             return; // Prevent any recording actions if input is locked
@@ -36,6 +40,12 @@ const PushToTalk = ({ onStartPushToTalk, onStopPushToTalk, elapsedTime, onRecord
 
         if (!recorder.current) {
             console.error("Recorder not initialized.");
+            return;
+        }
+
+        if (!useMootCourtStore.getState().isRecognizerReady) {
+            console.warn("Recognizer is not ready yet.");
+            return <div>Loading speech recognizer... Please wait.</div>;
             return;
         }
 
@@ -54,7 +64,7 @@ const PushToTalk = ({ onStartPushToTalk, onStopPushToTalk, elapsedTime, onRecord
         } else {
             // Start recording
             setIsRecording(true);
-            onRecordingStateChange(true); 
+            onRecordingStateChange(true);
             recorder.current.startRecording();
             onStartPushToTalk();
         }
@@ -62,16 +72,20 @@ const PushToTalk = ({ onStartPushToTalk, onStopPushToTalk, elapsedTime, onRecord
 
     const handleKeyDown = (event: KeyboardEvent) => {
         if (event.key === "Enter" && !isEnterPressed) {
-            setIsEnterPressed(true); // Prevent repeated triggers
-            toggleRecording();
+            if (useMootCourtStore.getState().isRecognizerReady) {
+                setIsEnterPressed(true); // Prevent repeated triggers
+                toggleRecording();
+            }
         }
 
-        
+
     };
 
     const handleKeyUp = (event: KeyboardEvent) => {
         if (event.key === "Enter") {
-            setIsEnterPressed(false); // Reset the key state when released
+            if (useMootCourtStore.getState().isRecognizerReady) {
+                setIsEnterPressed(false); // Reset the key state when released
+            }
         }
     };
 
@@ -87,114 +101,8 @@ const PushToTalk = ({ onStartPushToTalk, onStopPushToTalk, elapsedTime, onRecord
 
     return null;
 
-    return (
-        <div
-            style={{
-                cursor: isInputLocked ? "not-allowed" : "pointer", // Respect lock for visual feedback
-                padding: "10px",
-                backgroundColor: isInputLocked
-                    ? "gray" // Gray when locked
-                    : isRecording
-                        ? "red" // Red when actively recording
-                        : "green", // Green when idle and ready to record
-                color: "white",
-                borderRadius: "50%",
-                textAlign: "center",
-                width: "50px",
-                height: "50px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-            }}
-            onClick={!isInputLocked ? toggleRecording : undefined} // Disable click when locked
-            role="button"
-            tabIndex={0}
-        >
-            {isInputLocked ? "Locked" : isRecording ? "Stop" : "Start"}
-        </div>
-    );
 };
 
-// Previous implementation (Enter Held)
-//const PushToTalk = ({onStartPushToTalk, onStopPushToTalk, elapsedTime} : PushToTalkProps) =>
-//{
-//    const [isEnterHeld, setEnterHeld] = useState(false);
-//    const [isRecording, setIsRecording] = useState(false);
-//    const recorder = useRef<Recorder | null>(null);
-
-//    useEffect(() => {
-//       recorder.current = new Recorder();
-//       return () => {
-//           if (recorder.current)
-//           {
-//               recorder.current.cleanup();
-//           }
-//       }
-//    }, []);
-
-//    const handleKeyDown = (event) => {
-//        if (event.key !== 'Enter')
-//        {
-//            return;
-//        }
-
-//        setEnterHeld(true);
-//        if (!isRecording)
-//        {
-//            setIsRecording(true);
-//        }
-//    };
-
-//    const handleKeyUp = (event) => {
-//        if (event.key !== 'Enter')
-//        {
-//            return;
-//        }
-
-//        setEnterHeld(false);
-//        setIsRecording(false);
-//    }
-
-//    useEffect(() =>
-//    {
-//        window.addEventListener('keydown', handleKeyDown);
-//        window.addEventListener('keyup', handleKeyUp);
-//        return () =>
-//        {
-//            window.removeEventListener('keydown', handleKeyDown);
-//            window.removeEventListener('keyup', handleKeyUp);
-//        };
-//    }, []);
-
-//    useEffect(() => {
-//        if (!recorder.current)
-//        {
-//            console.error("Did you instantiate recorder?");
-//            return;
-//        }
-
-//        if (isEnterHeld)
-//        {
-//            recorder.current.startRecording();
-//            onStartPushToTalk();
-//        }else
-//        {
-//            if (recorder.current.mediaRecorder)
-//            {
-//                recorder.current.stopRecording();
-//            }
-//            onStopPushToTalk(recorder.current.getRecording());
-//        }
-//    }, [isEnterHeld]);
-
-//    return (
-//        <div></div>
-//    );
-//}
-
-//----------------------------------------------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------------------------------------------
 interface VoskResult {
     result: Array<{
         conf: number;
@@ -288,6 +196,8 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
     const [resultIndex, setResultIndex] = useState(0);
     const isInputLocked = useMootCourtStore((state) => state.isInputLocked);
     const setInputLock = useMootCourtStore((state) => state.setInputLock);
+    const isRecognizerReady = useMootCourtStore((state) => state.isRecognizerReady);
+    const setRecognizerReady = useMootCourtStore((state) => state.setRecognizerReady);
 
     const conversation = useRef<Array<any>>([]);
     const runningTimestamps = useRef<Array<any>>([]);
@@ -304,39 +214,70 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
 
 
     useEffect(() => {
+
+        useMootCourtStore.getState().setSubtitles("Preparing voice recognizer...");
+
         const loadModel = async () => {
-            loadedModel?.model.terminate();
-            const currentURL = window.location.href;
-            // Note: To enable logs from vosk-browser, change the second parameter of createModel to 0
-            const model = await createModel(`${currentURL}models/vosk-model-small-en-us-0.15.tar.gz`, -1);
+            try {
+                setRecognizerReady(false);
+                console.log("Model loading started...");
+                loadedModel?.model.terminate();
+                const currentURL = window.location.href;
+                // Note: To enable logs from vosk-browser, change the second parameter of createModel to 0
+                const model = await createModel(`${currentURL}models/vosk-model-small-en-us-0.15.tar.gz`, -1);
 
-            setLoadedModel({ model });
+                setLoadedModel({ model });
 
-            const newRecognizer = new model.KaldiRecognizer(48000);
-            newRecognizer.setWords(true);
+                const newRecognizer = new model.KaldiRecognizer(48000);
+                newRecognizer.setWords(true);
 
-            newRecognizer.on("result", (message: any) => {
-                setUserInput(message.result.text);
-                const result: VoskResult = message.result;
-                if (!result.result) {
-                    console.error("Vosk result undefined");
-                    setInputLock(false);
-                }
-                else {
-                    for (let index = resultIndex; index < result.result.length; index++) {
-                        const res = message.result.result[index];
-                        const word = res.word;
-                        const startTimeInMS = res.start * 1000;
-
-                        sendToAssessment(word, startTimeInMS);
-                        setResultIndex(resultIndex + 1);
+                newRecognizer.on("result", (message: any) => {
+                    setUserInput(message.result.text);
+                    const result: VoskResult = message.result;
+                    if (!result.result) {
+                        console.error("Vosk result undefined");
+                        setInputLock(false);
                     }
-                }
-            });
-            setRecognizer(newRecognizer);
+                    else {
+                        for (let index = resultIndex; index < result.result.length; index++) {
+                            const res = message.result.result[index];
+                            const word = res.word;
+                            const startTimeInMS = res.start * 1000;
+
+                            sendToAssessment(word, startTimeInMS);
+                            setResultIndex(resultIndex + 1);
+                        }
+                    }
+                });
+
+
+                setRecognizer(newRecognizer);
+
+
+                // Wait until recognizer is set
+                const waitForRecognizer = () => {
+                    if (!newRecognizer) {
+                        console.log("Recognizer not ready yet, retrying...");
+                        setTimeout(waitForRecognizer, 50); // Check every 50ms               
+                    } else {
+                        console.log("Model loading completed. Recognizer is ready!");
+                        useMootCourtStore.getState().setSubtitles("Press ENTER to talk.\n\nPress ENTER again to stop.");
+                        setRecognizerReady(true);
+                    }
+                };
+
+                waitForRecognizer(); // Start polling
+
+                
+            } catch (error) {
+                console.error("Error initializing recognizer:", error);
+                setRecognizerReady(false); // Mark as not ready
+            }
         };
 
         loadModel();
+
+
 
         return () => {
             if (loadedModel && loadedModel.model) {
@@ -346,6 +287,12 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
     }, []);
 
     const handleStartPTT = () => {
+
+        if (!useMootCourtStore.getState().isRecognizerReady) {
+            console.error("Recognizer not initialized.");
+            return;
+        }
+
         setMicIcon(micRecording);
     };
 
