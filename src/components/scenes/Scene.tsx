@@ -36,7 +36,7 @@ const onRenderCallback = (
     commitTime, // When React committed the render
     interactions // The interactions belonging to this update
 ) => {
-    console.log(`[${id}] ${phase} took ${actualDuration}ms`);
+    //console.log(`[${id}] ${phase} took ${actualDuration}ms`);
 };
 
 export default function GeneralScene({ setPaused, appConfig, appPaused, togglePause, updateAppState, updateConfig, judgeElapsedTime, setJudgeElapsedTime}) {

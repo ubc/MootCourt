@@ -11,6 +11,7 @@ export default function ConverseComponent({setIsSpeaking, appPaused, config, upd
     // TODO: Move Websocket initialization to before User clicks "Start"
     // Initialize WebSocket
     useEffect(() => {
+        console.warn("ConverseWebsocket Initialized");
         socket = ServerUtility.initializeWebSocket();
         setSocketReady(true);
 
@@ -45,7 +46,7 @@ export default function ConverseComponent({setIsSpeaking, appPaused, config, upd
     useEffect(() => {
         if (isAISpeaking)
         {
-            ServerUtility.pauseOrResumeAudioResponse();
+            ServerUtility.pauseOrResumeAudioResponse(); 
         }
     }, [appPaused]);
 
@@ -64,10 +65,12 @@ function getServerResponse(socket: WebSocket)
     if (!socket)
     {
         console.log('Invalid WebSocket - Did you check if the websocket is initialized?');
-        return;
+        return; 
     }
-    socket.onmessage = function(event)
+    socket.onmessage = function(event) 
     {
+        //console.log("Received a message"); 
+
         ServerUtility.playResponseAsAudio(event.data);
     };
 }

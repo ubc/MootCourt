@@ -11,6 +11,15 @@ export class ServerUtility {
     static isAudioPlaying = false;
     static audioPlayer: HTMLAudioElement | null = null;
     static accumulatedText = ''
+    static accumulatedUserSpeech = ''
+
+    // Variables for tracking talking state
+    private static isUserTalking = false;
+    static talkStartTime: number | null = null;
+    static talkEndTime: number | null = null;
+    static talkDuration: number | null = null;
+    static wordCount: 0;
+    
     private static socket: WebSocket | null = null;
 
     static initializeWebSocket(): WebSocket {
@@ -20,12 +29,16 @@ export class ServerUtility {
         }
 
 
-        this.socket = new WebSocket('wss://moot-api.ubc-dxl.ca:8899');
-        //this.socket = new WebSocket('ws://127.0.0.1:8889');
+        //this.socket = new WebSocket('wss://moot-api.ubc-dxl.ca:8899');
+        this.socket = new WebSocket('ws://127.0.0.1:8889');
         this.socket.onopen = function (event) {
             //socket.send('authorization_request secret_password');
+           
             console.log('WebSocket connection opened:', event);
         };
+
+        // Setup heartbeat
+        const heartbeatInterval = "heartbeat";  // 50 seconds
 
         this.socket.onclose = function (event) {
             if (event.wasClean) {
@@ -35,10 +48,15 @@ export class ServerUtility {
                 console.error('WebSocket connection closed unexpectedly:', event);
             }
 
+
         };
+        //this.socket.onmessage = function (event) {
+        //    console.log('Received message:', event.data); // Log the raw message for debugging
+        //}
 
         this.socket.onerror = function (error) {
             console.error('WebSocket error:', error);
+            clearInterval(heartbeatInterval);
         };
         useMootCourtStore.getState().setInputLock(false);
         return this.socket;
@@ -56,6 +74,58 @@ export class ServerUtility {
             console.error("Error sending message to web socket. Web socket state is ", socket.readyState);
         }
     }
+
+    // Track when user starts talking
+    static startTalking(): void {
+        if (!this.isUserTalking) {
+            this.isUserTalking = true;
+            this.talkStartTime = Date.now();
+            console.log('User started talking at:', new Date(this.talkStartTime).toISOString());
+        }
+    }
+
+    // Track when user stops talking
+    static stopTalking(): void {
+        if (this.isUserTalking) {
+            this.isUserTalking = false;
+            this.talkEndTime = Date.now();
+            console.log('User stopped talking at:', new Date(this.talkEndTime).toISOString());
+
+            this.talkDuration = (this.talkEndTime - (this.talkStartTime || this.talkEndTime));
+            console.log('User talked for', this.talkDuration, 'milliseconds');
+        }
+    }
+
+    // Reset talking state
+    static resetTalkingState(): void {
+        this.isUserTalking = false;
+        this.talkStartTime = null;
+        this.talkEndTime = null;
+        this.wordCount = 0;
+        console.log('Talking state reset.');
+    }
+
+    static sendRecordingToServer(socket: WebSocket, message: Uint8Array) {
+        if (message.length === 0) {
+            console.log("Received empty user input, will not send message to server.");
+            return;
+        }
+
+        if (socket.readyState === WebSocket.OPEN) {
+
+            // Add "[STT]" prefix
+            const prefix = new TextEncoder().encode("[STT]");
+            const prefixedByteArray = new Uint8Array(prefix.length + message.length);
+            prefixedByteArray.set(prefix);
+            prefixedByteArray.set(message, prefix.length);
+
+            console.log("sending message: " + message);
+            socket.send(prefixedByteArray);
+        } else {
+            console.error("Error sending message to web socket. Web socket state is ", socket.readyState);
+        }
+    }
+
 
     static playResponseAsAudio(data: string | Blob | string[], audioPlaybackType: AudioStreamType = AudioStreamType.Chunks) {
         console.log("PlayResponseAsAudio called");
@@ -83,6 +153,7 @@ export class ServerUtility {
         if (!chunk) {
             return;
         }
+        this.accumulatedUserSpeech = "";
         this.accumulatedText += chunk;
         const index = this.accumulatedText.indexOf("END[stop]~!~");
         //const unwantedSequence = "~!~";
@@ -101,6 +172,39 @@ export class ServerUtility {
         }
 
 
+    }
+
+    static accumulateUserSpeech(chunk: string) {
+
+        if (!chunk) {
+            return;
+        }
+        if (this.accumulatedUserSpeech.length > 0)
+            this.accumulatedUserSpeech += " ";
+        this.accumulatedUserSpeech += chunk;
+
+        //const index = this.accumulatedUserSpeech.indexOf("END[stop]~!~");
+        //const unwantedSequence = "~!~";
+        const unwantedSequenceB = /~!~/g;
+        //if (index !== -1) {
+        let textBeforeEnd = this.accumulatedUserSpeech;
+            textBeforeEnd = textBeforeEnd.replace(unwantedSequenceB, "");
+            console.log(textBeforeEnd);
+            useMootCourtStore.getState().setSubtitles(textBeforeEnd);
+
+            // clear accumulated text after logging
+        //this.accumulatedUserSpeech = this.accumulatedUserSpeech;
+
+        this.accumulatedUserSpeech = textBeforeEnd;
+
+        //}
+
+
+    }
+
+    static countUserSpeech()
+    {
+        this.wordCount += this.countWords(this.accumulatedUserSpeech);
     }
 
     static pauseOrResumeAudioResponse() {
@@ -128,6 +232,7 @@ export class ServerUtility {
     static playBlobsSequentially(index: number) {
         console.log("Playing Blobs Sequentially");
         const data = ServerUtility.Blobs;
+        console.log("Locking input from playblobs: ", useMootCourtStore.getState().isInputLocked);
         const setInputLock = useMootCourtStore.getState().setInputLock;
 
         if (data.length === 0) {
@@ -151,7 +256,7 @@ export class ServerUtility {
             if (data.length === 0) {
                 // Unlock input after the last blob has been played
                 console.log("All audio blobs have been played. Unlocking input.");
-                setInputLock(false);
+                useMootCourtStore.getState().setInputLock(false);
             } else {
                 // Play the next blob
                 ServerUtility.playBlobsSequentially(0); // Always start from the first index after splicing
@@ -160,8 +265,16 @@ export class ServerUtility {
 
         ServerUtility.audioPlayer.play().catch((error) => {
             console.error("Error playing audio: ", error);
-            setInputLock(false); // Ensure input is unlocked in case of an error
+            useMootCourtStore.getState().setInputLock(false); // Ensure input is unlocked in case of an error
         });
+    }
+
+    // Helper method to count words in a string
+    static countWords(text: string): number {
+        if (!text) return 0;
+
+        // Split the text by spaces and filter out empty elements
+        return text.split(/\s+/).filter(word => word.length > 0).length;
     }
 
     //static playBlobsSequentially(index: number) {
