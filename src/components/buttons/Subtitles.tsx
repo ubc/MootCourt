@@ -12,7 +12,7 @@ function Subtitles() {
     }));
 
     useEffect(() => {
-        setSubtitles(' ');  // default subtitle
+        setSubtitles('Press ENTER to begin presenting your case. Press ENTER again when you are done speaking.');  // default subtitle
     }, [setSubtitles]);  // 
 
 

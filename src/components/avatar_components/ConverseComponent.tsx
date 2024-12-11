@@ -1,10 +1,10 @@
-import React, {useEffect, useState} from 'react';
-import {Html} from "@react-three/drei";
-import {ServerUtility} from '../server/ServerUtility';
+import React, { useEffect, useState } from 'react';
+import { Html } from "@react-three/drei";
+import { ServerUtility } from '../server/ServerUtility';
 
 let socket: WebSocket;
 
-export default function ConverseComponent({setIsSpeaking, appPaused, config, updateConfig, userSpeechToTextInput}) {
+export default function ConverseComponent({ setIsSpeaking, appPaused, config, updateConfig, userSpeechToTextInput }) {
     const [socketReady, setSocketReady] = useState(false);
     const isAISpeaking = ServerUtility.isAudioPlaying;
 
@@ -32,8 +32,13 @@ export default function ConverseComponent({setIsSpeaking, appPaused, config, upd
     }, []);
 
     useEffect(() => {
-        if (socketReady && userSpeechToTextInput.length !== 0)
-        {
+        if (socketReady && userSpeechToTextInput.length !== 0) {
+            if (socket.readyState !== WebSocket.OPEN)
+            {
+                if (ServerUtility.socket)
+                    socket = ServerUtility.socket;
+            }
+
             ServerUtility.sendMessageToServer(socket, userSpeechToTextInput);
             getServerResponse(socket);
         }
@@ -44,9 +49,8 @@ export default function ConverseComponent({setIsSpeaking, appPaused, config, upd
     }, [isAISpeaking]);
 
     useEffect(() => {
-        if (isAISpeaking)
-        {
-            ServerUtility.pauseOrResumeAudioResponse(); 
+        if (isAISpeaking) {
+            ServerUtility.pauseOrResumeAudioResponse();
         }
     }, [appPaused]);
 
@@ -56,19 +60,16 @@ export default function ConverseComponent({setIsSpeaking, appPaused, config, upd
     );
 }
 
- //---------------------------------------------------------------------------------------------------------------------
- // Helper Functions
- //---------------------------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------------------------
+// Helper Functions
+//---------------------------------------------------------------------------------------------------------------------
 
-function getServerResponse(socket: WebSocket)
-{
-    if (!socket)
-    {
+function getServerResponse(socket: WebSocket) {
+    if (!socket) {
         console.log('Invalid WebSocket - Did you check if the websocket is initialized?');
-        return; 
+        return;
     }
-    socket.onmessage = function(event) 
-    {
+    socket.onmessage = function (event) {
         //console.log("Received a message"); 
 
         ServerUtility.playResponseAsAudio(event.data);

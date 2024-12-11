@@ -19,8 +19,8 @@ export class ServerUtility {
     static talkEndTime: number | null = null;
     static talkDuration: number | null = null;
     static wordCount: 0;
-    
-    private static socket: WebSocket | null = null;
+
+    static socket: WebSocket | null = null;
 
     static initializeWebSocket(): WebSocket {
         if (this.socket && (this.socket.readyState === WebSocket.CONNECTING || this.socket.readyState === WebSocket.OPEN)) {
@@ -29,12 +29,23 @@ export class ServerUtility {
         }
 
 
-        //this.socket = new WebSocket('wss://moot-api.ubc-dxl.ca:8899');
-        this.socket = new WebSocket('ws://127.0.0.1:8889');
+        this.socket = new WebSocket('wss://moot-api.ubc-dxl.ca:8899');
+        //this.socket = new WebSocket('ws://127.0.0.1:8889');
         this.socket.onopen = function (event) {
             //socket.send('authorization_request secret_password');
-           
+
             console.log('WebSocket connection opened:', event);
+
+            // Setup heartbeat
+            const heartbeatInterval = setInterval(() => {
+                if (this.readyState === WebSocket.OPEN) {
+                    this.send("[HCK]");
+                }
+            }, 50000); // 50 seconds
+
+            // Cleanup on unmount
+            return () => clearInterval(heartbeatInterval);
+
         };
 
         // Setup heartbeat
@@ -50,6 +61,7 @@ export class ServerUtility {
 
 
         };
+
         //this.socket.onmessage = function (event) {
         //    console.log('Received message:', event.data); // Log the raw message for debugging
         //}
@@ -62,6 +74,31 @@ export class ServerUtility {
         return this.socket;
     }
 
+    static isWebSocketInitialized(): boolean {
+        return !!this.socket;
+    }
+
+    static isWebSocketConnected(): boolean {
+        //console.log("WebsocketReadyState", socket?.readyState);
+        return this.socket?.readyState === WebSocket.OPEN || false;
+    }
+
+    static getWebSocketState(): string {
+        if (!this.socket) return "Not Initialized";
+        switch (this.socket.readyState) {
+            case WebSocket.CONNECTING:
+                return "Connecting";
+            case WebSocket.OPEN:
+                return "Open";
+            case WebSocket.CLOSING:
+                return "Closing";
+            case WebSocket.CLOSED:
+                return "Closed";
+            default:
+                return "Unknown";
+        }
+    }
+
     static sendMessageToServer(socket: WebSocket, message: string): void {
         if (message.length === 0) {
             console.log("Received empty user input, will not send message to server.");
@@ -72,6 +109,18 @@ export class ServerUtility {
             socket.send("[CSS]" + message);
         } else {
             console.error("Error sending message to web socket. Web socket state is ", socket.readyState);
+            console.log("Attempting to send to default web socket...");
+            if (this.socket) {
+                if (this.socket.readyState === WebSocket.OPEN) {
+                    this.socket.send("[CSS]" + message);
+                }
+                else {
+                    console.log("Default socket not connected");
+                }
+            }
+            else {
+                console.log("Default web socket unavailable as well :(");
+            }
         }
     }
 
@@ -85,7 +134,12 @@ export class ServerUtility {
     }
 
     // Track when user stops talking
-    static stopTalking(): void {
+    static stopTalking(valid: boolean): void {
+        if (!valid) {
+            this.isUserTalking = false;
+            console.log("invalid talk, skipping");
+            return;
+        }
         if (this.isUserTalking) {
             this.isUserTalking = false;
             this.talkEndTime = Date.now();
@@ -188,11 +242,11 @@ export class ServerUtility {
         const unwantedSequenceB = /~!~/g;
         //if (index !== -1) {
         let textBeforeEnd = this.accumulatedUserSpeech;
-            textBeforeEnd = textBeforeEnd.replace(unwantedSequenceB, "");
-            console.log(textBeforeEnd);
-            useMootCourtStore.getState().setSubtitles(textBeforeEnd);
+        textBeforeEnd = textBeforeEnd.replace(unwantedSequenceB, "");
+        console.log(textBeforeEnd);
+        useMootCourtStore.getState().setSubtitles(textBeforeEnd);
 
-            // clear accumulated text after logging
+        // clear accumulated text after logging
         //this.accumulatedUserSpeech = this.accumulatedUserSpeech;
 
         this.accumulatedUserSpeech = textBeforeEnd;
@@ -202,8 +256,7 @@ export class ServerUtility {
 
     }
 
-    static countUserSpeech()
-    {
+    static countUserSpeech() {
         this.wordCount += this.countWords(this.accumulatedUserSpeech);
     }
 

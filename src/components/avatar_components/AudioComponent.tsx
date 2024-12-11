@@ -6,6 +6,7 @@ import "../general/timer.css"
 import { useMootCourtStore } from "../MootCourtState";
 import { color } from "d3";
 import { ServerUtility } from '../server/ServerUtility';
+import { waitFor } from "@testing-library/react";
 
 //interface PushToTalkProps {
 //    onStartPushToTalk: () => void;
@@ -202,18 +203,30 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
     const setInputLock = useMootCourtStore((state) => state.setInputLock);
     //const isRecognizerReady = useMootCourtStore((state) => state.isRecognizerReady);
     //const setRecognizerReady = useMootCourtStore((state) => state.setRecognizerReady);
+    const [isReconnecting, setIsReconnecting] = useState(false);
 
     const conversation = useRef<Array<any>>([]);
     const runningTimestamps = useRef<Array<any>>([]);
 
-    let socket: WebSocket;
+    //let socket: WebSocket;
 
+    const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
 
-    // Initialization
     useEffect(() => {
+        //useMootCourtStore().setSubtitles("Press ENTER to begin presenting your case. Press ENTER again when you are done speaking.");
 
+        // Function to check WebSocket connection status
+        const checkWebSocketStatus = () => {
+            setIsWebSocketConnected(ServerUtility.isWebSocketConnected());
+        };
 
-    })
+        // Set up an interval to check every 1 second
+        const interval = setInterval(checkWebSocketStatus, 2000);
+
+        // Cleanup the interval on component unmount
+        return () => clearInterval(interval);
+    }, []);
+
 
     const handleRecordingStateChange = (isRecording: boolean) => {
         if (isInputLocked) {
@@ -229,6 +242,19 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         if (useMootCourtStore.getState().isInputLocked) {
             console.warn("Input is locked. Cannot start recording.");
             return;
+        }
+
+        if (!ServerUtility.isWebSocketConnected()) {
+            setInputLock(true);
+            console.warn("Cannot start recording, websocket not connected");
+            ServerUtility.initializeWebSocket();
+            setIsWebSocketConnected(ServerUtility.isWebSocketConnected());
+            const isConnected = await waitForWebSocketConnection(500);
+            setInputLock(false);
+            if (!isConnected) {
+                return;
+            }
+
         }
 
         setIsRecording(true);
@@ -252,7 +278,16 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
                 mediaRecorder.onstop = async () => {
                     const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
                     audioChunksRef.current = []; // Reset for next recording
-                    sendAudioToServer(audioBlob);
+                    const isValidSpeech = await analyzeAudioContent(audioBlob);
+                    if (isValidSpeech)
+                        sendAudioToServer(audioBlob);
+                    else
+                        console.log("Recording invalid, no speech detected");
+
+                    setMicIcon(micReady);
+                    ServerUtility.stopTalking(isValidSpeech);
+                    setIsRecording(false);
+                    setInputLock(isValidSpeech);
                 };
 
                 mediaRecorder.start();
@@ -265,21 +300,105 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         }
     };
 
+    const analyzeAudioContent = async (audioBlob) => {
+        const audioContext = new AudioContext();
+        const arrayBuffer = await audioBlob.arrayBuffer();
+        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+        const channelData = audioBuffer.getChannelData(0); // Analyze the first channel
+        const threshold = 0.1; // Set a threshold for silence
+        const hasSpeech = channelData.some(sample => Math.abs(sample) > threshold);
+
+        return hasSpeech;
+    };
+
     const stopRecording = () => {
         if (recorderRef.current) {
+            if (recorderRef.current.state === "paused") {
+                recorderRef.current.resume(); // Resume before stopping
+            }
             recorderRef.current.stop();
-            setMicIcon(micReady);
-            ServerUtility.stopTalking();
-            setIsRecording(false);
-            setInputLock(true);
+            //setMicIcon(micReady);
+            //ServerUtility.stopTalking();
+            //setIsRecording(false);
+            //setInputLock(true);
         }
     };
 
+    const pauseRecording = () => {
+        if (recorderRef.current) {
+            recorderRef.current.pause();
+        }
+    }
+    const resumeRecording = () => {
+        if (recorderRef.current) {
+            recorderRef.current.resume();
+        }
+    }
+
     const handleKeyUp = (event: KeyboardEvent) => {
         if (event.key === "Enter" && !isRecording) {
-            startRecording();
+            {
+                startRecording();
+
+            }
         } else if (event.key === "Enter" && isRecording) {
+
+            handleStopOrReconnect();
+
+            //if (isReconnecting)
+            //    return;
+            //if (ServerUtility.isWebSocketConnected()) {
+            //    console.log("Stopping recording");
+            //    stopRecording();
+            //}
+            //else {
+            //    setIsReconnecting(true);
+            //    pauseRecording();
+            //    console.log("Connection is closed, pausing recording while attempting to reconnect");
+            //    while (isReconnecting)
+            //    {
+            //        ServerUtility.initializeWebSocket();
+            //        setIsWebSocketConnected(ServerUtility.isWebSocketConnected());
+            //        const isConnected = await waitForWebSocketConnection(500);
+            //        if (!isConnected) {
+            //            return;
+            //        }
+            //    }
+            //}
+        }
+    };
+
+    const handleStopOrReconnect = async () => {
+        if (isReconnecting) {
+            console.log("Already reconnecting, returning");
+            return;
+        }
+
+        if (ServerUtility.isWebSocketConnected()) {
+            console.log("Stopping recording");
             stopRecording();
+        } else {
+            setIsReconnecting(true);
+            var reconnecting = true;
+            pauseRecording();
+            console.log("Connection is closed, pausing recording while attempting to reconnect");
+
+            while (reconnecting) {
+                ServerUtility.initializeWebSocket();
+                setIsWebSocketConnected(ServerUtility.isWebSocketConnected());
+
+                console.log("Attempting to reconnect...");
+
+                const isConnected = await waitForWebSocketConnection(500);
+                if (isConnected) {
+                    console.log("Reconnected successfully");
+                    setIsReconnecting(false);
+                    reconnecting = false;
+                    stopRecording();
+                    return;
+                }
+            }
         }
     };
 
@@ -287,32 +406,48 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         try {
             const arrayBuffer = await audioBlob.arrayBuffer();
             const byteArray = new Uint8Array(arrayBuffer);
-            if (!socket) {
-                socket = ServerUtility.initializeWebSocket();
-            }
+            //if (!socket) {
+            //    socket = ServerUtility.initializeWebSocket();
+            //}
+            if (ServerUtility.socket) {
+                ServerUtility.sendRecordingToServer(ServerUtility.socket, byteArray);
+                console.log("Audio sent successfully.");
 
-            ServerUtility.sendRecordingToServer(socket, byteArray);
-            console.log("Audio sent successfully.");
 
-            socket.onmessage = function (event) {
-                console.log("Received a response");
-                if (typeof event.data === 'string') {
-                    if (event.data.substring(0, 5) == "[SUB]")
-                        ServerUtility.accumulateUserSpeech(event.data.substring(5));
+                ServerUtility.socket.onmessage = function (event) {
+                    console.log("Received a response");
+                    if (typeof event.data === 'string') {
+                        if (event.data.substring(0, 5) == "[SUB]")
+                            ServerUtility.accumulateUserSpeech(event.data.substring(5));
 
-                    if (!isRecording) {
-                        ServerUtility.countUserSpeech();
-                        sendToAssessment(ServerUtility.accumulatedUserSpeech, ServerUtility.talkDuration);
-                        setUserInput(ServerUtility.accumulatedUserSpeech);
+                        if (!isRecording) {
+                            ServerUtility.countUserSpeech();
+                            sendToAssessment(ServerUtility.accumulatedUserSpeech, ServerUtility.talkDuration);
+                            setUserInput(ServerUtility.accumulatedUserSpeech);
+                        }
+                        //useMootCourtStore.getState().setSubtitles(event.data);
                     }
-                    //useMootCourtStore.getState().setSubtitles(event.data);
-                }
-                //ServerUtility.playResponseAsAudio(event.data);
-            };
+                    else {
+                        ServerUtility.playResponseAsAudio(event.data);
+                    }
+                    //ServerUtility.playResponseAsAudio(event.data);
+                };
+            }
+            else {
+                console.error("Websocket not available, cannot send recording");
+            }
 
         } catch (error) {
             console.error("Error sending audio to server:", error);
         }
+    };
+
+    const waitForWebSocketConnection = async (timeoutMs = 500) => {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve(ServerUtility.isWebSocketConnected());
+            }, timeoutMs);
+        });
     };
 
     useEffect(() => {
@@ -320,6 +455,8 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         return () => {
             window.removeEventListener("keyup", handleKeyUp);
         };
+
+
 
     }, [isRecording]);
 
@@ -517,6 +654,40 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
 
                     {micIcon}
                 </div>
+            </div>
+            {/* WebSocket Status Indicator */}
+            <div
+                style={{
+                    position: "absolute",
+                    top: "10px",
+                    right: "10px",
+                    display: "flex",
+                    alignItems: "center",
+                }}
+            >
+                {/* Status Text */}
+                <span
+                    style={{
+                        color: "white",
+                        fontWeight: "bold",
+                        marginBottom: "2px",
+                        marginRight: "10px", // Add space between text and the circle
+                        textShadow: "1px 1px 0 black, -1px 1px 0 black, 1px -1px 0 black, -1px -1px 0 black",
+                    }}
+                >
+                    {isWebSocketConnected ? "Connected!" : "Not Connected!"}
+                </span>
+
+                {/* Status Circle */}
+                <div
+                    style={{
+                        width: "15px",
+                        height: "15px",
+                        borderRadius: "50%",
+                        backgroundColor: isWebSocketConnected ? "green" : "red",
+                        border: "2px solid black",
+                    }}
+                ></div>
             </div>
         </Html>
     );
