@@ -22,6 +22,20 @@ export class ServerUtility {
 
     static socket: WebSocket | null = null;
 
+    static getMimeType() {
+        var mimeTypeSetting = "audio/webm";
+
+        if (ServerUtility.isSafari()) {
+            mimeTypeSetting = ""; // Default //"audio/mp4; codecs=\"mp4a.40.2\"";
+        }
+
+        return mimeTypeSetting;
+    }    
+
+    static isSafari() {
+        return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    }
+
     static initializeWebSocket(): WebSocket {
         if (this.socket && (this.socket.readyState === WebSocket.CONNECTING || this.socket.readyState === WebSocket.OPEN)) {
             console.log('WebSocket is already open.');
@@ -29,8 +43,8 @@ export class ServerUtility {
         }
 
 
-        this.socket = new WebSocket('wss://moot-api.ubc-dxl.ca:8899');
-        //this.socket = new WebSocket('ws://127.0.0.1:8889');
+        //this.socket = new WebSocket('wss://moot-api.ubc-dxl.ca:8899');
+        this.socket = new WebSocket('ws://127.0.0.1:8889');
         this.socket.onopen = function (event) {
             //socket.send('authorization_request secret_password');
 
@@ -169,6 +183,7 @@ export class ServerUtility {
 
             // Add "[STT]" prefix
             const prefix = new TextEncoder().encode("[STT]");
+            
             const prefixedByteArray = new Uint8Array(prefix.length + message.length);
             prefixedByteArray.set(prefix);
             prefixedByteArray.set(message, prefix.length);
@@ -329,7 +344,7 @@ export class ServerUtility {
         // Split the text by spaces and filter out empty elements
         return text.split(/\s+/).filter(word => word.length > 0).length;
     }
-
+    
     //static playBlobsSequentially(index: number) {
     //    console.log("Playing Blobs Sequentially");
     //    const data = ServerUtility.Blobs;

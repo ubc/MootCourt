@@ -15,20 +15,20 @@ export default function ConverseComponent({ setIsSpeaking, appPaused, config, up
         socket = ServerUtility.initializeWebSocket();
         setSocketReady(true);
 
-        // Setup heartbeat
-        const heartbeatInterval = setInterval(() => {
-            if (socket.readyState === WebSocket.OPEN) {
-                socket.send("[HCK]");
-            }
-        }, 50000); // 50 seconds
+        //// Setup heartbeat
+        //const heartbeatInterval = setInterval(() => {
+        //    if (socket.readyState === WebSocket.OPEN) {
+        //        socket.send("[HCK]");
+        //    }
+        //}, 50000); // 50 seconds
 
-        // Cleanup on unmount
-        return () => {
-            clearInterval(heartbeatInterval);
-            if (socket) {
-                socket.close();
-            }
-        };
+        //// Cleanup on unmount
+        //return () => {
+        //    clearInterval(heartbeatInterval);
+        //    if (socket) {
+        //        socket.close();
+        //    }
+        //};
     }, []);
 
     useEffect(() => {

@@ -260,44 +260,49 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         setIsRecording(true);
         ServerUtility.startTalking();
 
+        //try {
+        //const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        //const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+
         try {
+            const mimeTypeSetting = ServerUtility.getMimeType();// "audio/webm";
+
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+            var mediaRecorder = new MediaRecorder(stream, { mimeType: mimeTypeSetting });
+            //if (mimeTypeSetting === "")
+            //    mediaRecorder = new MediaRecorder(stream);
+            //const mediaRecorder = new MediaRecorder(stream, { mimeType: mimeTypeSetting });
+            recorderRef.current = mediaRecorder;
 
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
-                recorderRef.current = mediaRecorder;
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
 
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        audioChunksRef.current.push(event.data);
-                    }
-                };
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: mimeTypeSetting });
+                audioChunksRef.current = []; // Reset for next recording
+                const isValidSpeech = await analyzeAudioContent(audioBlob);
+                if (isValidSpeech)
+                    sendAudioToServer(audioBlob);
+                else
+                    console.log("Recording invalid, no speech detected");
 
-                mediaRecorder.onstop = async () => {
-                    const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-                    audioChunksRef.current = []; // Reset for next recording
-                    const isValidSpeech = await analyzeAudioContent(audioBlob);
-                    if (isValidSpeech)
-                        sendAudioToServer(audioBlob);
-                    else
-                        console.log("Recording invalid, no speech detected");
+                setMicIcon(micReady);
+                ServerUtility.stopTalking(isValidSpeech);
+                setIsRecording(false);
+                setInputLock(isValidSpeech);
+            };
 
-                    setMicIcon(micReady);
-                    ServerUtility.stopTalking(isValidSpeech);
-                    setIsRecording(false);
-                    setInputLock(isValidSpeech);
-                };
-
-                mediaRecorder.start();
-                setMicIcon(micRecording);
-            } catch (error) {
-                console.error("Error starting recording:", error);
-            }
+            mediaRecorder.start();
+            setMicIcon(micRecording);
         } catch (error) {
             console.error("Error starting recording:", error);
         }
+        //} catch (error) {
+        //    console.error("Error starting recording:", error);
+        //}
     };
 
     const analyzeAudioContent = async (audioBlob) => {
