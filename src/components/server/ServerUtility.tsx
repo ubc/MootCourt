@@ -43,8 +43,8 @@ export class ServerUtility {
         }
 
 
-        //this.socket = new WebSocket('wss://moot-api.ubc-dxl.ca:8899');
-        this.socket = new WebSocket('ws://127.0.0.1:8889');
+        this.socket = new WebSocket('wss://moot-api.ubc-dxl.ca:8899');
+        //this.socket = new WebSocket('ws://127.0.0.1:8889');
         this.socket.onopen = function (event) {
             //socket.send('authorization_request secret_password');
 
