@@ -87,3 +87,44 @@
   align-items: end;
   width: 95%;
 }
+
+/*Pulsating microphone animation*/
+.micIndicatorContainer.pulsate {
+    animation: pulsate 1s infinite ease-in-out;
+}
+
+@keyframes pulsate {
+    0% {
+        box-shadow: 0 0 0 0 var(--dynamic-color, rgba(255, 255, 255, 0));
+    }
+
+    50% {
+        box-shadow: 0 0 0 1px var(--dynamic-color, rgba(255, 255, 255, 0.3)); /* Smaller and more transparent */
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 var(--dynamic-color, rgba(255, 255, 255, 0));
+    }
+}
+
+@keyframes fadeInStayOut {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    8.33% { /* 0.5s of 6s */
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    83.33% { /* 5.5s of 6s */
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+}

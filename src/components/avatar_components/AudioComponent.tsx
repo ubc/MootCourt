@@ -7,7 +7,11 @@ import { useMootCourtStore } from "../MootCourtState";
 import { color } from "d3";
 import { ServerUtility } from '../server/ServerUtility';
 import { waitFor } from "@testing-library/react";
-
+declare module "react" {
+    interface CSSProperties {
+        "--dynamic-color"?: string; // Declare your custom property
+    }
+}
 //interface PushToTalkProps {
 //    onStartPushToTalk: () => void;
 //    onStopPushToTalk: (audioBlob: Blob) => void;
@@ -126,11 +130,11 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         viewBox="0 0 24 24"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        color="#000000">
-        <rect x="9" y="2" width="6" height="12" rx="3" stroke="#000000" strokeWidth="1.5" />
+        color="#ffffff">
+        <rect x="9" y="2" width="6" height="12" rx="3" stroke="#ffffff" strokeWidth="2" />
         <path d="M5 10v1a7 7 0 007 7v0a7 7 0 007-7v-1M12 18v4m0 0H9m3 0h3"
-            stroke="#000000"
-            strokeWidth="1.5"
+            stroke="#ffffff"
+            strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round" />
     </svg>
@@ -143,10 +147,10 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         color="#228B22">
-        <rect x="9" y="2" width="6" height="12" rx="3" stroke="#228B22" strokeWidth="1.5" />
+        <rect x="9" y="2" width="6" height="12" rx="3" stroke="#228B22" strokeWidth="2" />
         <path d="M5 10v1a7 7 0 007 7v0a7 7 0 007-7v-1M12 18v4m0 0H9m3 0h3"
             stroke="#228B22"
-            strokeWidth="1.5"
+            strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round" />
     </svg>
@@ -159,10 +163,10 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
         color="#FA5F55">
-        <rect x="9" y="2" width="6" height="12" rx="3" stroke="#FA5F55" strokeWidth="1.5" />
+        <rect x="9" y="2" width="6" height="12" rx="3" stroke="#FA5F55" strokeWidth="2" />
         <path d="M5 10v1a7 7 0 007 7v0a7 7 0 007-7v-1M12 18v4m0 0H9m3 0h3"
             stroke="#FA5F55"
-            strokeWidth="1.5"
+            strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round" />
     </svg>
@@ -193,6 +197,8 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
 
     const [userInput, setUserInput] = useState('');
     const [micIcon, setMicIcon] = useState<JSX.Element>(micReady);
+    const [micColor, setMicColor] = useState("#ffffff"); // Default color
+    const [showPopup, setShowPopup] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const recorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
@@ -227,6 +233,11 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         return () => clearInterval(interval);
     }, []);
 
+    const handleNoSpeechDetected = () => {
+        console.log("Clicked nospeechdetectged");
+        setShowPopup(true); // Show the popup
+        setTimeout(() => setShowPopup(false), 6000); // Hide the popup after 6 seconds
+    };
 
     const handleRecordingStateChange = (isRecording: boolean) => {
         if (isInputLocked) {
@@ -287,9 +298,13 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
                 if (isValidSpeech)
                     sendAudioToServer(audioBlob);
                 else
+                {
+                    handleNoSpeechDetected();
                     console.log("Recording invalid, no speech detected");
+                }
 
                 setMicIcon(micReady);
+                setMicColor("#ffffff");
                 ServerUtility.stopTalking(isValidSpeech);
                 setIsRecording(false);
                 setInputLock(isValidSpeech);
@@ -297,6 +312,7 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
 
             mediaRecorder.start();
             setMicIcon(micRecording);
+            setMicColor("#228B22");
         } catch (error) {
             console.error("Error starting recording:", error);
         }
@@ -306,15 +322,32 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
     };
 
     const analyzeAudioContent = async (audioBlob) => {
+
         const audioContext = new AudioContext();
         const arrayBuffer = await audioBlob.arrayBuffer();
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
         const channelData = audioBuffer.getChannelData(0); // Analyze the first channel
-        const threshold = 0.1; // Set a threshold for silence
-        const hasSpeech = channelData.some(sample => Math.abs(sample) > threshold);
 
+        // Calculate RMS
+        const rms = Math.sqrt(channelData.reduce((sum, sample) => sum + sample ** 2, 0) / channelData.length);
+
+        const threshold = 0.02; // Adjust based on testing and environment noise
+        const hasSpeech = rms > threshold;
+
+        console.log(`RMS: ${rms}, Speech Detected: ${hasSpeech}`);
         return hasSpeech;
+
+
+        //const audioContext = new AudioContext();
+        //const arrayBuffer = await audioBlob.arrayBuffer();
+        //const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+        //const channelData = audioBuffer.getChannelData(0); // Analyze the first channel
+        //const threshold = 0.1; // Set a threshold for silence
+        //const hasSpeech = channelData.some(sample => Math.abs(sample) > threshold);
+
+        //return hasSpeech;
     };
 
     const stopRecording = () => {
@@ -614,8 +647,10 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         // Ensure micIcon updates when isInputLocked changes
         if (isInputLocked) {
             setMicIcon(micWaiting);
+            setMicColor("#FA5F55");
         } else {
             setMicIcon(micReady);
+            setMicColor("#ffffff");
         }
     }, [isInputLocked]); // Dependency on isInputLocked
 
@@ -628,38 +663,110 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
 
     return (
         <Html fullscreen>
+
             {!appPaused //&& (<PushToTalk onStartPushToTalk={handleStartPTT} onStopPushToTalk={handleStopPTT} elapsedTime={elapsedTime} onRecordingStateChange={handleRecordingStateChange}></PushToTalk>)
             }
-            <div className='micIndicatorContainer'
+
+            
+            <div
+                className="micIndicatorContainer"
                 style={{
-                    backgroundColor: 'white',
+
+                    backgroundColor: '#171717',
                     width: 'min-content',
                     height: 'min-content',
-                    border: '2px solid black',
-                    borderRadius: '50px',
+                    border: `1px solid ${micColor}`, // Use dynamic color
+                    borderRadius: '20px',
                     position: 'absolute',
-                    marginLeft: '30px',
-                    marginRight: '30px',
-                    // bottom: 0,
-                    // left: 900,
-
-                    right: 0,  // Position it on the right side
-                    bottom: 0,  // Position it at the bottom
+                    marginLeft: '40px',
+                    marginRight: '40px',
+                    right: 0, // Position it on the right side
+                    bottom: 0, // Position it at the bottom
                     marginBottom: '35px',
-                    scale: '2',
-                }}>
-
-                <div style={{
-                    width: 'min-content',
-                    height: 'min-content',
-                    transform: 'translateY(2px)',
-                    position: 'relative',
-                    margin: 'auto',
-                }}>
-
+                    transform: 'scale(2.25)', // Adjust scale for the size
+                    //animation: 'pulsate 1.5s infinite ease-in-out',
+                    //boxShadow: '0 0 0 0 rgba(34, 139, 34, 0.7)',
+                    animation:
+                        micColor !== "#ffffff" // Assuming default is non-recording/idle
+                            ? "pulsate 1s infinite ease-in-out" // Apply pulsating effect for active states
+                            : "none",
+                    boxShadow:
+                        micColor !== "#ffffff"
+                            ? `0 0 15px 5px ${micColor}` // Dynamic shadow color
+                            : "none",// No shadow for idle state
+                    "--dynamic-color": micColor,
+                }}
+            >
+                <div
+                    style={{
+                        width: 'min-content',
+                        height: 'min-content',
+                        transform: 'translateY(2px)',
+                        position: 'relative',
+                        margin: 'auto',
+                    }}
+                >
                     {micIcon}
                 </div>
+
+                <div style={{ position: "relative" }}>
+                    {/* Popup Text */}
+                    {showPopup && (
+                        <div
+                            style={{
+                                position: "absolute",
+                                bottom: 40, // Position it above the mic container
+                                right: 0,
+                                padding: "10px 15px",
+                                backgroundColor: "rgba(0, 0, 0, 0.8)",
+                                color: "white",
+                                borderRadius: "8px",
+                                fontSize: "14px",
+                                textAlign: "center",
+                                boxShadow: "0px 4px 6px rgba(0, 0, 0, 0.1)",
+                                whiteSpace: "nowrap",
+                                zIndex: 1000,
+                                animation: "fadeInStayOut 6s ease-in-out",
+                            }}
+                        >
+                            No speech detected
+                            <br />
+                            Check microphone settings
+                        </div>
+                    )}
+                </div>
             </div>
+            {/*<div className='micIndicatorContainer'*/}
+            {/*    style={{*/}
+            {/*        backgroundColor: '#171717',*/}
+            {/*        width: 'min-content',*/}
+            {/*        height: 'min-content',*/}
+            {/*        //border: '0px solid white',*/}
+            {/*        border: `2px solid ${micColor}`, // Use dynamic color*/}
+            {/*        borderRadius: '24px',*/}
+            {/*        position: 'absolute',*/}
+            {/*        marginLeft: '40px',*/}
+            {/*        marginRight: '40px',*/}
+            {/*        // bottom: 0,*/}
+            {/*        // left: 900,*/}
+
+            {/*        right: 0,  // Position it on the right side*/}
+            {/*        bottom: 0,  // Position it at the bottom*/}
+            {/*        marginBottom: '35px',*/}
+            {/*        scale: '2.25',*/}
+            {/*    }}>*/}
+
+            {/*    <div style={{*/}
+            {/*        width: 'min-content',*/}
+            {/*        height: 'min-content',*/}
+            {/*        transform: 'translateY(2px)',*/}
+            {/*        position: 'relative',*/}
+            {/*        margin: 'auto',*/}
+            {/*    }}>*/}
+
+            {/*        {micIcon}*/}
+            {/*    </div>*/}
+            {/*</div>*/}
             {/* WebSocket Status Indicator */}
             <div
                 style={{
@@ -693,6 +800,8 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
                         border: "2px solid black",
                     }}
                 ></div>
+
+
             </div>
         </Html>
     );
