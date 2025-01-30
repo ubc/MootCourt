@@ -12,112 +12,6 @@ declare module "react" {
         "--dynamic-color"?: string; // Declare your custom property
     }
 }
-//interface PushToTalkProps {
-//    onStartPushToTalk: () => void;
-//    onStopPushToTalk: (audioBlob: Blob) => void;
-//    elapsedTime: number;
-//    onRecordingStateChange: (isRecording: boolean) => void;
-//}
-
-//const PushToTalk = ({ onStartPushToTalk, onStopPushToTalk, elapsedTime, onRecordingStateChange }: PushToTalkProps) => {
-//    const isInputLocked = useMootCourtStore((state) => state.isInputLocked);
-//    const [isRecording, setIsRecording] = useState(false);
-//    const recorder = useRef<Recorder | null>(null);
-//    const [isEnterPressed, setIsEnterPressed] = useState(false);
-//    const isRecognizerReady = useMootCourtStore((state) => state.isRecognizerReady);
-
-//    useEffect(() => {
-//        recorder.current = new Recorder();
-//        return () => {
-//            if (recorder.current) {
-//                recorder.current.cleanup();
-//            }
-//            useMootCourtStore.getState().setRecognizerReady(false);
-//            useMootCourtStore.getState().setInputLock(false);
-//        };
-//    }, []);
-
-//    const toggleRecording = async () => {
-//        //console.log("isRecognizerReady: " + useMootCourtStore.getState().isRecognizerReady);
-//        if (isInputLocked) {
-//            console.warn("Input is locked. Cannot start or stop recording.");
-//            return; // Prevent any recording actions if input is locked
-//        }
-
-//        if (!recorder.current) {
-//            console.error("Recorder not initialized.");
-//            return;
-//        }
-
-//        //if (!useMootCourtStore.getState().isRecognizerReady) {
-//        //    console.warn("Recognizer is not ready yet.");
-//        //    return <div>Loading speech recognizer... Please wait.</div>;
-//        //    return;
-//        //}
-
-
-//        if (isRecording) {
-//            // Stop recording
-//            setIsRecording(false);
-//            onRecordingStateChange(false); // Notify parent
-//            if (recorder.current.mediaRecorder) {
-//                recorder.current.stopRecording();
-//            }
-//            const audioBlob = recorder.current.getRecording();
-//            if (audioBlob) {
-//                onStopPushToTalk(audioBlob);
-//            }
-//        } else {
-//            // Start recording
-//            setIsRecording(true);
-//            onRecordingStateChange(true);
-//            recorder.current.startRecording();
-//            onStartPushToTalk();
-//        }
-//    };
-
-//    const handleKeyDown = (event: KeyboardEvent) => {
-//        if (event.key === "Enter" && !isEnterPressed) {
-//            if (useMootCourtStore.getState().isRecognizerReady) {
-//                setIsEnterPressed(true); // Prevent repeated triggers
-//                toggleRecording();
-//            }
-//        }
-
-
-//    };
-
-//    const handleKeyUp = (event: KeyboardEvent) => {
-//        if (event.key === "Enter") {
-//            if (useMootCourtStore.getState().isRecognizerReady) {
-//                setIsEnterPressed(false); // Reset the key state when released
-//            }
-//        }
-//    };
-
-
-//    useEffect(() => {
-//        window.addEventListener("keydown", handleKeyDown);
-//        window.addEventListener("keyup", handleKeyUp);
-//        return () => {
-//            window.removeEventListener("keydown", handleKeyDown);
-//            window.removeEventListener("keyup", handleKeyUp);
-//        };
-//    }, [isInputLocked, isRecording, isEnterPressed]); // Include isRecording in the dependency array to ensure the toggle works correctly.
-
-//    return null;
-
-//};
-
-//interface VoskResult {
-//    result: Array<{
-//        conf: number;
-//        start: number;
-//        end: number;
-//        word: string;
-//    }>;
-//    text: string;
-//}
 
 function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) {
     //----------------------------------------------------------------------------------------------------------------------
@@ -200,15 +94,11 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
     const [micColor, setMicColor] = useState("#ffffff"); // Default color
     const [showPopup, setShowPopup] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
+    const [isPopupAnimating, setIsPopupAnimating] = useState(false);
     const recorderRef = useRef<MediaRecorder | null>(null);
     const audioChunksRef = useRef<Blob[]>([]);
-    //const [loadedModel, setLoadedModel] = useState<{ model: Model; }>();
-    //const [recognizer, setRecognizer] = useState<KaldiRecognizer>();
-    //const [resultIndex, setResultIndex] = useState(0);
     const isInputLocked = useMootCourtStore((state) => state.isInputLocked);
     const setInputLock = useMootCourtStore((state) => state.setInputLock);
-    //const isRecognizerReady = useMootCourtStore((state) => state.isRecognizerReady);
-    //const setRecognizerReady = useMootCourtStore((state) => state.setRecognizerReady);
     const [isReconnecting, setIsReconnecting] = useState(false);
 
     const conversation = useRef<Array<any>>([]);
@@ -219,8 +109,6 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
     const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
 
     useEffect(() => {
-        //useMootCourtStore().setSubtitles("Press ENTER to begin presenting your case. Press ENTER again when you are done speaking.");
-
         // Function to check WebSocket connection status
         const checkWebSocketStatus = () => {
             setIsWebSocketConnected(ServerUtility.isWebSocketConnected());
@@ -234,9 +122,18 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
     }, []);
 
     const handleNoSpeechDetected = () => {
-        console.log("Clicked nospeechdetectged");
+        if (isPopupAnimating) return;
+
+        //console.log("Clicked nospeechdetectged");
         setShowPopup(true); // Show the popup
-        setTimeout(() => setShowPopup(false), 6000); // Hide the popup after 6 seconds
+        setIsPopupAnimating(true);
+
+        setTimeout(() => {
+            setShowPopup(false);
+            setTimeout(() => {
+                setIsPopupAnimating(false); // Allow re-trigger after animation ends
+            }, 500); // 500ms fade-out delay
+        }, 5500);
     };
 
     const handleRecordingStateChange = (isRecording: boolean) => {
@@ -271,18 +168,11 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         setIsRecording(true);
         ServerUtility.startTalking();
 
-        //try {
-        //const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        //const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
-
         try {
             const mimeTypeSetting = ServerUtility.getMimeType();// "audio/webm";
 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             var mediaRecorder = new MediaRecorder(stream, { mimeType: mimeTypeSetting });
-            //if (mimeTypeSetting === "")
-            //    mediaRecorder = new MediaRecorder(stream);
-            //const mediaRecorder = new MediaRecorder(stream, { mimeType: mimeTypeSetting });
             recorderRef.current = mediaRecorder;
 
             mediaRecorder.ondataavailable = (event) => {
@@ -338,16 +228,6 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         console.log(`RMS: ${rms}, Speech Detected: ${hasSpeech}`);
         return hasSpeech;
 
-
-        //const audioContext = new AudioContext();
-        //const arrayBuffer = await audioBlob.arrayBuffer();
-        //const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-        //const channelData = audioBuffer.getChannelData(0); // Analyze the first channel
-        //const threshold = 0.1; // Set a threshold for silence
-        //const hasSpeech = channelData.some(sample => Math.abs(sample) > threshold);
-
-        //return hasSpeech;
     };
 
     const stopRecording = () => {
@@ -384,26 +264,6 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
 
             handleStopOrReconnect();
 
-            //if (isReconnecting)
-            //    return;
-            //if (ServerUtility.isWebSocketConnected()) {
-            //    console.log("Stopping recording");
-            //    stopRecording();
-            //}
-            //else {
-            //    setIsReconnecting(true);
-            //    pauseRecording();
-            //    console.log("Connection is closed, pausing recording while attempting to reconnect");
-            //    while (isReconnecting)
-            //    {
-            //        ServerUtility.initializeWebSocket();
-            //        setIsWebSocketConnected(ServerUtility.isWebSocketConnected());
-            //        const isConnected = await waitForWebSocketConnection(500);
-            //        if (!isConnected) {
-            //            return;
-            //        }
-            //    }
-            //}
         }
     };
 
@@ -444,9 +304,6 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         try {
             const arrayBuffer = await audioBlob.arrayBuffer();
             const byteArray = new Uint8Array(arrayBuffer);
-            //if (!socket) {
-            //    socket = ServerUtility.initializeWebSocket();
-            //}
             if (ServerUtility.socket) {
                 ServerUtility.sendRecordingToServer(ServerUtility.socket, byteArray);
                 console.log("Audio sent successfully.");
@@ -463,7 +320,6 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
                             sendToAssessment(ServerUtility.accumulatedUserSpeech, ServerUtility.talkDuration);
                             setUserInput(ServerUtility.accumulatedUserSpeech);
                         }
-                        //useMootCourtStore.getState().setSubtitles(event.data);
                     }
                     else {
                         ServerUtility.playResponseAsAudio(event.data);
@@ -497,141 +353,7 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
 
 
     }, [isRecording]);
-
-    //useEffect(() => {
-
-    //    useMootCourtStore.getState().setSubtitles("Preparing voice recognizer...");
-
-    //    const loadModel = async () => {
-    //        try {
-    //            setRecognizerReady(false);
-    //            console.log("Model loading started...");
-    //            loadedModel?.model.terminate();
-    //            const currentURL = window.location.href;
-    //            // Note: To enable logs from vosk-browser, change the second parameter of createModel to 0
-    //            const model = await createModel(`${currentURL}models/vosk-model-small-en-us-0.15.tar.gz`, -1);
-
-    //            setLoadedModel({ model });
-
-    //            const newRecognizer = new model.KaldiRecognizer(48000);
-    //            newRecognizer.setWords(true);
-
-    //            newRecognizer.on("result", (message: any) => {
-    //                setUserInput(message.result.text);
-    //                const result: VoskResult = message.result;
-    //                if (!result.result) {
-    //                    console.error("Vosk result undefined");
-    //                    setInputLock(false);
-    //                }
-    //                else {
-    //                    for (let index = resultIndex; index < result.result.length; index++) {
-    //                        const res = message.result.result[index];
-    //                        const word = res.word;
-    //                        const startTimeInMS = res.start * 1000;
-
-    //                        sendToAssessment(word, startTimeInMS);
-    //                        setResultIndex(resultIndex + 1);
-    //                    }
-    //                }
-    //            });
-
-
-    //            setRecognizer(newRecognizer);
-
-
-    //            // Wait until recognizer is set
-    //            const waitForRecognizer = () => {
-    //                if (!newRecognizer) {
-    //                    console.log("Recognizer not ready yet, retrying...");
-    //                    setTimeout(waitForRecognizer, 50); // Check every 50ms               
-    //                } else {
-    //                    console.log("Model loading completed. Recognizer is ready!");
-    //                    useMootCourtStore.getState().setSubtitles("Press ENTER to talk.\n\nPress ENTER again to stop.");
-    //                    setRecognizerReady(true);
-    //                }
-    //            };
-
-    //            waitForRecognizer(); // Start polling
-
-
-    //        } catch (error) {
-    //            console.error("Error initializing recognizer:", error);
-    //            setRecognizerReady(false); // Mark as not ready
-    //        }
-    //    };
-
-    //    loadModel();
-
-
-
-    //    return () => {
-    //        if (loadedModel && loadedModel.model) {
-    //            loadedModel.model.terminate();
-    //        }
-    //    };
-    //}, []);
-
-    //const handleStartPTT = () => {
-
-    //    if (!useMootCourtStore.getState().isRecognizerReady) {
-    //        console.error("Recognizer not initialized.");
-    //        return;
-    //    }
-
-    //    setMicIcon(micRecording);
-    //    setIsRecording(true);
-    //};
-
-    //const handleStopPTT = async (audioBlob: Blob) => {
-
-    //    setIsRecording(false);
-
-    //    if (!audioBlob || audioBlob.size <= 0) {
-    //        return;
-    //    }
-
-    //    setInputLock(true);
-
-    //    if (!recognizer) {
-    //        console.error("Did you instantiate the speech recognizer?");
-    //        setInputLock(false);
-    //        return;
-    //    }
-
-    //    try {
-    //        const audioBuffer = await blobToAudioBuffer(audioBlob);
-
-    //        if (!audioBuffer || audioBuffer.length === 0) {
-    //            console.warn("Silent audio detected. Unlocking input.");
-    //            setInputLock(false); // Unlock input for silent audio
-    //            return;
-    //        }
-
-
-    //        recognizer.acceptWaveform(audioBuffer);
-    //        recognizer.retrieveFinalResult();
-    //    } catch (error) {
-    //        console.error('Error processing audio waveform:', error);
-    //        console.error('This usually happens when microphone permissions are invalid. It _should_ only happen the first time. Refreshing...');
-    //        window.location.reload();
-    //        setInputLock(false);
-    //        setMicIcon(micReady);
-
-    //        // Handle the error gracefully, such as logging or displaying a message to the user
-    //    }
-    //    //recognizer.acceptWaveform(await blobToAudioBuffer(audioBlob));
-    //    //recognizer.retrieveFinalResult();
-
-    //    if (useMootCourtStore.getState().isInputLocked) {
-    //        setMicIcon(micWaiting);
-    //    }
-    //    else {
-    //        setIsRecording(false);
-    //        setMicIcon(micReady);
-    //    }
-
-
-    //};
+        
 
     useEffect(() => {
         if (userInput.length > 0) {
@@ -639,9 +361,6 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
         }
     }, [userInput]);
 
-    //useEffect(() => {
-    //    console.log("Microphone status:", isSpeaking ? "Detecting sound..." : "Silent");
-    //}, [isSpeaking]);
 
     useEffect(() => {
         // Ensure micIcon updates when isInputLocked changes
@@ -664,9 +383,9 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
     return (
         <Html fullscreen>
 
-            {!appPaused //&& (<PushToTalk onStartPushToTalk={handleStartPTT} onStopPushToTalk={handleStopPTT} elapsedTime={elapsedTime} onRecordingStateChange={handleRecordingStateChange}></PushToTalk>)
+            {!appPaused 
             }
-
+                
             
             <div
                 className="micIndicatorContainer"
@@ -683,9 +402,7 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
                     right: 0, // Position it on the right side
                     bottom: 0, // Position it at the bottom
                     marginBottom: '35px',
-                    transform: 'scale(2.25)', // Adjust scale for the size
-                    //animation: 'pulsate 1.5s infinite ease-in-out',
-                    //boxShadow: '0 0 0 0 rgba(34, 139, 34, 0.7)',
+                    transform: 'scale(2.25)', 
                     animation:
                         micColor !== "#ffffff" // Assuming default is non-recording/idle
                             ? "pulsate 1s infinite ease-in-out" // Apply pulsating effect for active states
@@ -735,39 +452,28 @@ function AudioComponent({ config, appPaused, onTranscriptChange, elapsedTime }) 
                         </div>
                     )}
                 </div>
+
+                {/* Status Text (Listening, Thinking, or Ready) */}
+                <div
+                    style={{
+                        position: "absolute",
+                        bottom: 26, // Adjust position above mic container
+                        left: "50%",
+                        transform: "translateX(-50%)", // Center align
+                        backgroundColor: "rgba(0, 0, 0, 0)",
+                        color: "white",
+                        padding: "6px 12px",
+                        borderRadius: "8px",
+                        fontSize: "8px",
+                        fontWeight: "bold",
+                        whiteSpace: "nowrap",
+                        opacity: 1,
+                        transition: "opacity 0.3s ease-in-out",
+                    }}
+                >
+                    {micColor === "#228B22" ? "Listening.." : micColor === "#FA5F55" ? "Replying.." : "Ready"}
+                </div>
             </div>
-            {/*<div className='micIndicatorContainer'*/}
-            {/*    style={{*/}
-            {/*        backgroundColor: '#171717',*/}
-            {/*        width: 'min-content',*/}
-            {/*        height: 'min-content',*/}
-            {/*        //border: '0px solid white',*/}
-            {/*        border: `2px solid ${micColor}`, // Use dynamic color*/}
-            {/*        borderRadius: '24px',*/}
-            {/*        position: 'absolute',*/}
-            {/*        marginLeft: '40px',*/}
-            {/*        marginRight: '40px',*/}
-            {/*        // bottom: 0,*/}
-            {/*        // left: 900,*/}
-
-            {/*        right: 0,  // Position it on the right side*/}
-            {/*        bottom: 0,  // Position it at the bottom*/}
-            {/*        marginBottom: '35px',*/}
-            {/*        scale: '2.25',*/}
-            {/*    }}>*/}
-
-            {/*    <div style={{*/}
-            {/*        width: 'min-content',*/}
-            {/*        height: 'min-content',*/}
-            {/*        transform: 'translateY(2px)',*/}
-            {/*        position: 'relative',*/}
-            {/*        margin: 'auto',*/}
-            {/*    }}>*/}
-
-            {/*        {micIcon}*/}
-            {/*    </div>*/}
-            {/*</div>*/}
-            {/* WebSocket Status Indicator */}
             <div
                 style={{
                     position: "absolute",

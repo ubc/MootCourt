@@ -22,7 +22,7 @@ import {Html, PerspectiveCamera, useTexture} from "@react-three/drei"
 import { Vector3 } from 'three'; // Import Vector3 from three.js
 import * as THREE from 'three';
 import AudioComponent from '../avatar_components/AudioComponent';
-import { useMootCourtStore } from '../MootCourtState.jsx';
+import { useMootCourtStore } from '../MootCourtState';
 
 const cameraPosition = new Vector3(0, 0, 5);
 const cameraFov = 48;
@@ -79,11 +79,21 @@ export default function GeneralScene({ setPaused, appConfig, appPaused, togglePa
     const [serverMessage, setServerMessage] = useState(''); // State to hold the server message
 
     useEffect(() => {
-        const socket = ServerUtility.initializeWebSocket();
-        socket.onmessage = function(event) {
-            const message = event.data;
-            setServerMessage(message); // Update state with the received message
-        };
+        if (appConfig.isInteliJudge) {
+            console.log("Intellijudge confirmed");
+            const socket = ServerUtility.initializeWebSocket();
+            socket.onmessage = function (event) {
+                const message = event.data;
+                setServerMessage(message); // Update state with the received message
+            };
+
+            useMootCourtStore.getState().setSubtitles(`Council, you may begin your presentation.
+            Press ENTER to begin presenting your case.
+            Press ENTER again when you are done speaking.`);
+        }
+        else {
+            useMootCourtStore.getState().setSubtitles(" ");
+        }
     }, []);
 
   // Extract the conversation elements from displayConversation useRef and update the state

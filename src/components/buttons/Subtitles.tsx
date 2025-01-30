@@ -12,7 +12,10 @@ function Subtitles() {
     }));
 
     useEffect(() => {
-        setSubtitles('Press ENTER to begin presenting your case. Press ENTER again when you are done speaking.');  // default subtitle
+        //setSubtitles(' ');
+        setSubtitles(useMootCourtStore.getState().subtitles);
+        //useMootCourtStore.getState().setSubtitles(useMootCourtStore.getState().subtitles);
+        //setSubtitles('Press ENTER to begin presenting your case. Press ENTER again when you are done speaking.');  // default subtitle
     }, [setSubtitles]);  // 
 
 

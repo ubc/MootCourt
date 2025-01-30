@@ -41,6 +41,7 @@ function App() {
         if (appState === Scene) {
             setSubtitleText(config.judgeIntroSpeech); // Set the initial subtitle text to the judge's intro speech
         }
+        console.log("current appState is: ", appState);
         console.log("current config is:", config);
     };
 

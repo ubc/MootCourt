@@ -1,19 +1,20 @@
 import { Suspense, useEffect, useState } from 'react'
 import "./timer.css"
+import { useMootCourtStore } from '../MootCourtState';
 
 function shuffle(array) {
-    let currentIndex = array.length,  randomIndex;
+    let currentIndex = array.length, randomIndex;
 
     // While there remain elements to shuffle.
     while (currentIndex != 0) {
 
-      // Pick a remaining element.
-      randomIndex = Math.floor(Math.random() * currentIndex);
-      currentIndex--;
+        // Pick a remaining element.
+        randomIndex = Math.floor(Math.random() * currentIndex);
+        currentIndex--;
 
-      // And swap it with the current element.
-      [array[currentIndex], array[randomIndex]] = [
-        array[randomIndex], array[currentIndex]];
+        // And swap it with the current element.
+        [array[currentIndex], array[randomIndex]] = [
+            array[randomIndex], array[currentIndex]];
     }
 
     return array;
@@ -22,7 +23,7 @@ function shuffle(array) {
 // if app is active, 1) receive total required time 2) set warning times automatically
 // ** do not decrement when timer restarts
 // time received in seconds, convert to ms for more accurate time count
-function GlobalTimer({hasAppIntroStarted, setHasAppIntroStarted, isAppInIntro, setIsAppInIntro, config, setJudgeSpeechText, appPaused, updateAppState, currentTime, setCurrentTime, noNegativeTime, judgeElapsedTime, setJudgeElapsedTime, shouldUpdateJudgeElapsedTime, setShouldUpdateJudgeElapsedTime}) {
+function GlobalTimer({ hasAppIntroStarted, setHasAppIntroStarted, isAppInIntro, setIsAppInIntro, config, setJudgeSpeechText, appPaused, updateAppState, currentTime, setCurrentTime, noNegativeTime, judgeElapsedTime, setJudgeElapsedTime, shouldUpdateJudgeElapsedTime, setShouldUpdateJudgeElapsedTime }) {
     const [elapsedTime, setElapsedTime] = useState(0);
     const [previousTime, setPreviousTime] = useState(Date.now());
     const [timeText, setTimeText] = useState("");
@@ -31,14 +32,14 @@ function GlobalTimer({hasAppIntroStarted, setHasAppIntroStarted, isAppInIntro, s
     const [updateTimerInterval, setUpdateTimerInterval] = useState(false)
     const [lightColor, setLightColor] = useState("#199E54")
     const warningColor = "#FA646A"
-    const pauseColor = "#FF0000" 
+    const pauseColor = "#FF0000"
 
     // judge time controller
     if (config.setRandomized) {
         shuffle(config.AQuestions)
         shuffle(config.RQuestions)
     }
-    const listOfUtterances = config.playerPosition === "Appellant"? config.AQuestions : config.RQuestions
+    const listOfUtterances = config.playerPosition === "Appellant" ? config.AQuestions : config.RQuestions
     const questionInterval = config.questionInterval * 1000
     const [judgeQuestionIndex, setJudgeQuestionIndex] = useState(0);
 
@@ -58,14 +59,15 @@ function GlobalTimer({hasAppIntroStarted, setHasAppIntroStarted, isAppInIntro, s
         // console.log("updating time for judge")
         // wait 3 seconds for judge
         // console.log("judgeElapsedTime:", judgeElapsedTime / 1000)
-        if (config.isInteliJudge == true){
+        if (config.isInteliJudge == true) {
             //console.log('InteliJudge active, GlobalTimer not used for speech control');
-        }else{
+        } else {
 
             if (!hasAppIntroStarted && judgeElapsedTime > 3000) {
                 console.log(listOfUtterances)
                 setHasAppIntroStarted(true)
                 setJudgeSpeechText(config.judgeIntroSpeech)
+                useMootCourtStore.getState().setSubtitles(config.judgeIntroSpeech)
                 setJudgeElapsedTime(0)
                 setIsAppInIntro(true)
             }
@@ -76,6 +78,7 @@ function GlobalTimer({hasAppIntroStarted, setHasAppIntroStarted, isAppInIntro, s
                     setShouldUpdateJudgeElapsedTime(true)
                     console.log("utterance: ", listOfUtterances[judgeQuestionIndex])
                     setJudgeSpeechText(listOfUtterances[judgeQuestionIndex])
+                    useMootCourtStore.getState().setSubtitles(listOfUtterances[judgeQuestionIndex])
                     resetQuestionIndex()
                     console.log("judge index", judgeQuestionIndex)
                 }
@@ -84,6 +87,7 @@ function GlobalTimer({hasAppIntroStarted, setHasAppIntroStarted, isAppInIntro, s
                 setShouldUpdateJudgeElapsedTime(true)
                 console.log("utterance: ", listOfUtterances[judgeQuestionIndex])
                 setJudgeSpeechText(listOfUtterances[judgeQuestionIndex])
+                useMootCourtStore.getState().setSubtitles(listOfUtterances[judgeQuestionIndex])
                 resetQuestionIndex()
                 console.log("judge index", judgeQuestionIndex)
             }
@@ -134,21 +138,25 @@ function GlobalTimer({hasAppIntroStarted, setHasAppIntroStarted, isAppInIntro, s
                     setLightColor("#199E54")
                 }
             }
-            //setJudgeElapsedTime(judgeElapsedTime + elapsedTime)
+            if (!config.isInteliJudge) {
+                setJudgeElapsedTime(judgeElapsedTime + elapsedTime) // This is needed for classic for some reason
+            }
             // Calculate the remaining time after each tick
             setCurrentTime(prevTime => prevTime - elapsedTime)
         } else {
             // Otherwise, when the app is paused, set timer to red
             setLightColor(pauseColor)
         }
+    //}, [])
     }, [updateTimerInterval])
 
-    
+
 
     // If interval should be reset, this function runs.
     useEffect(() => {
         if (!appPaused && shouldUpdateJudgeElapsedTime) {
             setJudgeElapsedTime(0)
+            
             setShouldUpdateJudgeElapsedTime(false)
         }
     }, [shouldUpdateJudgeElapsedTime])
