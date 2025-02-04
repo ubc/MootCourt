@@ -1,5 +1,5 @@
-import { Suspense, useEffect, useState } from 'react'
 import "./timer.css"
+import { Suspense, useEffect, useState } from 'react'
 import { useMootCourtStore } from '../MootCourtState';
 
 function shuffle(array) {

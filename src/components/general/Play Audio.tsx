@@ -41,7 +41,7 @@ export async function speak(options: any, onEnd){
 
 	const currentURL = window.location.href;
 	const differentiator = options.text.slice(0, 30);
-    let filepath = `${currentURL}Audio/Judge Questions/judge-audio_${differentiator}.wav`;
+    let filepath = `${currentURL}Audio/Judge Questions/judge-audio_${differentiator}.mp3`;
 	filepath = filepath.replaceAll(' ', '%20');
 	console.log(filepath);
 
