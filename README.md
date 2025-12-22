@@ -36,12 +36,6 @@ Jon Festinger, Q.C.
 Nikos Harris, Q.C.
 Barbara Wang BA, JD
 
-### Current EML Student Team:
-
-- Rosaline - Developer/Lead
-- Michelle - Developer
-- Juno - Developer
-- Jena - Designer
 
 ## Troubleshooting
 - High severity vulnerability regarding *Inefficient Regular Expression Complexity in nth-check* is likely a false alarm. Can ignore, do not force fix as it may break the project.
