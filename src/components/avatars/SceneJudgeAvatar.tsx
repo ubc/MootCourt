@@ -80,7 +80,7 @@ function SceneJudgeAvatar({animated = true, judgeSpeechText, judgeElapsedTime, a
                 appPaused={false}
                 position={[-2, -2.8, -3]}
                 rotation={[0, 0, 0]}
-                modelUrl={'models/judge_avatar/left_judge.glb'}
+                modelUrl={'models/judge_avatar/Judge_PT_Dec15.glb'}
                 animated={animated}
                 animationPause={true}/>
 
@@ -113,7 +113,7 @@ function SceneJudgeAvatar({animated = true, judgeSpeechText, judgeElapsedTime, a
                 appPaused={false}
                 position={[-2, -2.8, -3]}
                 rotation={[0, 0, 0]}
-                modelUrl={'models/judge_avatar/left_judge.glb'}
+                modelUrl={'models/judge_avatar/Judge_PT_Dec15.glb'}
                 animated={animated}
                 animationPause={true}/>
 
