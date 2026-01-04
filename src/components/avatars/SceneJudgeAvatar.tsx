@@ -10,16 +10,15 @@ function SceneJudgeAvatar({animated = true, judgeSpeechText, judgeElapsedTime, a
     const [animationPaused, setAnimationPaused] = useState(true)
 
     useEffect(() => {
-        const keyDownHandler = (e) => {
-            console.log("pressed key: " + e.key)
-            setText("key was pressed. testing audio.")
-        }
-        document.addEventListener('keydown', keyDownHandler)
-        return () => {
-            document.removeEventListener('keydown', keyDownHandler)
+    const keyDownHandler = (e) => {
+        console.log("pressed key: " + e.key);
+        setText("key was pressed. testing audio.");
+    };
 
-        }
-    })
+    document.addEventListener("keydown", keyDownHandler);
+    return () => document.removeEventListener("keydown", keyDownHandler);
+    }, []);
+
 
     useEffect(() => {
         if (readyToSpeak) {

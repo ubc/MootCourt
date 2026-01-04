@@ -16,14 +16,15 @@ function AnimationComponentNPC({appPaused, position, rotation, modelUrl, animate
 
     return (<>
         <Suspense fallback={null}>
-            <mesh rotation={rotation} position={position}>
+            <group rotation={rotation} position={position}>
                 <ModelNPC modelUrl={modelUrl}
                     pos={[0, 0, 0]}
                     rot={[0, 0, 0]}
                     sca={[2, 2, 2]}
                     pauseAnimation={isAnimationPaused}
-                    animated={animated}></ModelNPC>
-                </mesh>
+                    animated={animated}>    
+                </ModelNPC>
+            </group>
         </Suspense>
     </>
     )

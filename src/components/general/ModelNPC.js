@@ -5,7 +5,7 @@ import PropTypes from 'prop-types';
 import * as THREE from 'three';
 
 
-function Model({ modelUrl, pos, rot, sca, pauseAnimation = true, animated }) {
+function ModelNPC({ modelUrl, pos, rot, sca, pauseAnimation = true, animated }) {
   const [gltf, setGltf] = useState();
   const [mixer, setMixer] = useState(null);
 
@@ -38,7 +38,7 @@ function Model({ modelUrl, pos, rot, sca, pauseAnimation = true, animated }) {
   ) : null;
 }
 
-Model.propTypes = {
+ModelNPC.propTypes = {
   modelUrl: PropTypes.string,
   pos: PropTypes.any,
   rot: PropTypes.any,
@@ -47,4 +47,4 @@ Model.propTypes = {
   animated: PropTypes.bool,
 };
 
-export default Model;
+export default ModelNPC;
