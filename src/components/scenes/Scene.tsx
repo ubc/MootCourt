@@ -39,6 +39,7 @@ const onRenderCallback = (
   //console.log(`[${id}] ${phase} took ${actualDuration}ms`);
 };
 
+
 export default function GeneralScene({
   setPaused,
   appConfig,
@@ -115,8 +116,10 @@ export default function GeneralScene({
     setConversationElements(displayConversation.current);
   }, [displayConversation.current]);
 
+
   return (
     <Profiler id="GeneralScene" onRender={onRenderCallback}>
+      
       <Canvas
         camera={{
           position: cameraPosition,
