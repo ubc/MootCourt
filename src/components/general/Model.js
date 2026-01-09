@@ -46,7 +46,6 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = true, pauseAnimation = tr
         const newAnimations = gltf.animations.map((clip) => {
           const action = mixer.clipAction(clip);
           action.clampWhenFinished = true;
-          action.clampWhenFinished = true;
           action.timeScale = 1;
           return {
             action,
@@ -69,7 +68,7 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = true, pauseAnimation = tr
   //Funtion for controlling speaking/listening animation: Plays the talking animation when isSpeaking is true, else iterates through random motions 
   useEffect(() => {
     if (animations.length > 0) {
-      const crossfadeDuration = 2;
+      const crossfadeDuration = 1;
       const speakingClip = animations.find((clip) => clip.action.getClip().name === 'talking');
       const randomClips = animations.filter(
         (clip) => clip.action.getClip().name !== 'talking'
@@ -80,8 +79,9 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = true, pauseAnimation = tr
       if (isSpeaking) {
         if (speakingClip) {
           setCurrentAnimationIndex(0);
-          speakingClip.action.setLoop(THREE.LoopRepeat);
+          
           speakingClip.action.reset();
+          speakingClip.action.setLoop(THREE.LoopRepeat);
           speakingClip.action.fadeIn(crossfadeDuration);
           speakingClip.action.play();
 
@@ -89,9 +89,9 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = true, pauseAnimation = tr
         }
       } else {
         
-        speakingClip.action.fadeOut(crossfadeDuration, () => {
-          speakingClip.action.stop();
-        });
+        // speakingClip.action.fadeOut(crossfadeDuration, () => {
+        //   speakingClip.action.stop();
+        // });
 
         stopRandomAnimations();
         shuffleArray(randomClips);
