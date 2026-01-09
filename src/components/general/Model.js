@@ -13,7 +13,7 @@ const shuffleArray = (array) => {
   return array;
 };
 
-function Model({ modelUrl, pos, rot, sca, isSpeaking = true, pauseAnimation = true, animated }) {
+function Model({ modelUrl, pos, rot, sca, isSpeaking = false, pauseAnimation = true, animated }) {
   const [gltf, setGltf] = useState();
   const [mixer, setMixer] = useState(null);
   const [animations, setAnimations] = useState([]);
@@ -68,7 +68,7 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = true, pauseAnimation = tr
   //Funtion for controlling speaking/listening animation: Plays the talking animation when isSpeaking is true, else iterates through random motions 
   useEffect(() => {
     if (animations.length > 0) {
-      const crossfadeDuration = 1;
+      const crossfadeDuration = 2;
       const speakingClip = animations.find((clip) => clip.action.getClip().name === 'talking');
       const randomClips = animations.filter(
         (clip) => clip.action.getClip().name !== 'talking'
@@ -93,27 +93,32 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = true, pauseAnimation = tr
         //   speakingClip.action.stop();
         // });
 
-        stopRandomAnimations();
+        //stopRandomAnimations();
         shuffleArray(randomClips);
 
         setCurrentAnimationIndex(0);
 
         const playNextRandomAnimation = () => {
+          console.log('play next random')
           setCurrentAnimationIndex((prevIndex) => {
             const nextIndex = (prevIndex + 1) % randomClips.length;
             const currentClip = randomClips[prevIndex];
             const nextClip = randomClips[nextIndex];
       
             // Fade out the current animation and stop it after the fade-out is complete
+            currentClip.action.clampWhenFinished=true;
+            console.log('fading out');
             currentClip.action.fadeOut(crossfadeDuration, () => {
               currentClip.action.stop();
               currentClip.action.reset(); // Reset the animation state after stopping
             });
       
             // Fade in and play the next animation
+            currentClip.action.clampWhenFinished=true;
             nextClip.action.reset();
             nextClip.action.setLoop(THREE.LoopOnce);
             nextClip.action.fadeIn(crossfadeDuration);
+            console.log('play next')
             nextClip.action.play();
       
             return nextIndex;
@@ -122,10 +127,10 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = true, pauseAnimation = tr
 
         intervalRef.current = setInterval(
           playNextRandomAnimation,
-          randomClips[0].duration * 1000
+          randomClips[0].duration * 1000.0
         );
 
-        randomClips[0].action.fadeIn(crossfadeDuration);
+        //randomClips[0].action.fadeIn(crossfadeDuration);
         randomClips[0].action.play();
 
         return () => {
