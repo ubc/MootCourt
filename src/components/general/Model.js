@@ -78,6 +78,8 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = false, pauseAnimation = t
       // while logging its name, and ensure any random animations are stopped.
       if (isSpeaking) {
         if (speakingClip) {
+          
+          stopRandomAnimations();
           setCurrentAnimationIndex(0);
           
           speakingClip.action.reset();
@@ -85,7 +87,6 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = false, pauseAnimation = t
           speakingClip.action.fadeIn(crossfadeDuration);
           speakingClip.action.play();
 
-          stopRandomAnimations();
         }
       } else {
         
@@ -93,33 +94,31 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = false, pauseAnimation = t
         //   speakingClip.action.stop();
         // });
 
-        //stopRandomAnimations();
         shuffleArray(randomClips);
 
         setCurrentAnimationIndex(0);
 
         const playNextRandomAnimation = () => {
-          console.log('play next random')
           setCurrentAnimationIndex((prevIndex) => {
             const nextIndex = (prevIndex + 1) % randomClips.length;
             const currentClip = randomClips[prevIndex];
             const nextClip = randomClips[nextIndex];
       
+            
+            currentClip.action.clampWhenFinished=true;
+            nextClip.action.reset();
+            nextClip.action.setLoop(THREE.LoopOnce);
+            nextClip.action.fadeIn(crossfadeDuration);
+            nextClip.action.play();
+
             // Fade out the current animation and stop it after the fade-out is complete
             currentClip.action.clampWhenFinished=true;
-            console.log('fading out');
             currentClip.action.fadeOut(crossfadeDuration, () => {
               currentClip.action.stop();
               currentClip.action.reset(); // Reset the animation state after stopping
             });
       
             // Fade in and play the next animation
-            currentClip.action.clampWhenFinished=true;
-            nextClip.action.reset();
-            nextClip.action.setLoop(THREE.LoopOnce);
-            nextClip.action.fadeIn(crossfadeDuration);
-            console.log('play next')
-            nextClip.action.play();
       
             return nextIndex;
           });
@@ -130,6 +129,9 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = false, pauseAnimation = t
           randomClips[0].duration * 1000.0
         );
 
+        
+        randomClips[0].action.clampWhenFinished=true;
+        randomClips[0].action.setLoop(THREE.LoopOnce);
         //randomClips[0].action.fadeIn(crossfadeDuration);
         randomClips[0].action.play();
 
