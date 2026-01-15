@@ -9,17 +9,17 @@
     "judgeIntroSpeech": "Counsel, you may begin your presentation.",
   "AQuestions": [
     "Counsel, the trial judge saw and heard all the evidence in this case. Is it not the job of the trial judge to weigh the evidence and decide what conclusions to draw from the evidence?",
-    "You argue that the trial judge made some errors in the law and errors in the analysis of the evidence. Can you point me to the specific language of the trial judge which you say demonstrates those errors?",
-    "Counsel, could you tell me where you are in your factum?",
+    "You argue that the trial judge made some errors in the law in this case. Can you point me to the specific language of the trial judge which demonstrates those errors?",
+    "Can you tell me where you are in your factum?",
     "The Respondent’s Factum takes a different view of the cases you rely upon. Can you tell me why the Respondent’s view of those cases is not correct?",
-    "Even if the trial judge did make the errors set out in your argument, would they have made any difference in the result at trial?  Do you not agree the case against the accused had some weaknesses?"
+    "Counsel, would findings of liability in this case be unfair for small businesses which need to be able to rely on clear language in their contracts and assume that third parties cannot rely on their contracts? Don’t they need that type of certainty to be able to operate?"
   ],
   "RQuestions": [
-    "Is it at least possibility that the trial judge used the wrong legal tests in this case, and if there is any uncertainty on this issue, should we not err on the side of caution and order a new trial?",
-    "Do you agree that that the accused engaged in reckless and dangerous activity which is deserving of some sort of criminal sanction?",
-    "Counsel, could you tell me where you are in your factum?",
+    "Do you agree that the trial judge could have been clearer in describing the particular law and evidence used to rule in favor of the College?",
+    "Do you agree that there was some strong evidence that supported the Appellant’s view of the case?",
+    "Can you tell me where you are in your Factum?",
     "The Appellant’s factum takes a different view of the cases you are relying upon. Can you tell me why the Appellant’s view of those cases is not correct?",
-    "As you are aware, we are not bound by any precedents. Could you please tell the Court why we should follow the law in the main authorities that you rely upon?"
+    "On a policy level, should not the law of contract attempt to protect the interests of less powerful parties, including individual students and employees, rather than more powerful parties like businesses?"
   ],
     "isInteliJudge": true
 }

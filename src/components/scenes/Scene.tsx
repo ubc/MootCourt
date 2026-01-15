@@ -24,7 +24,7 @@ import * as THREE from "three";
 import AudioComponent from "../avatar_components/AudioComponent";
 import { useMootCourtStore } from "../MootCourtState";
 
-const cameraPosition = new Vector3(0, 0, 1.2);
+const cameraPosition = new Vector3(0, 0, 2.2);
 const cameraFov = 42;
 
 const onRenderCallback = (
