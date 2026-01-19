@@ -103,7 +103,7 @@ export default function GeneralScene({
       };
 
       useMootCourtStore.getState()
-        .setSubtitles(`Council, you may begin your presentation.
+        .setSubtitles(`Counsel, you may begin your presentation.
             Press ENTER to begin presenting your case.
             Press ENTER again when you are done speaking.`);
     } else {
