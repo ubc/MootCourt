@@ -203,7 +203,7 @@ function LandingPageMenu({updateAppState, updateConfig, config}) {
         updateConfig({...config, isInteliJudge: true});
         console.log("IntelliJudge enabled.");
 
-        window.alert("This is the IntelliJudge version. Please note that, as of now, it has not undergone thorough testing, and we cannot guarantee its full functionality. You may encounter unexpected behavior or issues while using this version.\n\nIntelliJudge needs your permission to access your microphone to function properly.");
+        window.alert("Please note that IntelliJudge is an AI Agent and has associated limitations in reasoning.\n\nIntelliJudge needs your permission to access your microphone to function properly.");
 
         // Requesting access to Microphone        
         try {
@@ -272,9 +272,10 @@ function LandingPageMenu({updateAppState, updateConfig, config}) {
                         <button className="button wide-button" type="button" onClick={(event) => pressTutorial()}> TUTORIAL </button>
                         <button className="button wide-button" type="button" onClick={(event) => pressMootingResources()}>MOOTING RESOURCES</button>
                         <button className="button wide-button buttonFeedback" type="button" onClick={(event) => pressFeedback()}>
-                            <a className="button wide-button buttonFeedback" href=" https://ubc.ca1.qualtrics.com/jfe/form/SV_2l3a4rVJhxIcKeq" target="_blank">GIVE FEEDBACK</a>
+                            <a className="button wide-button buttonFeedback" href="https://ubc.ca1.qualtrics.com/jfe/form/SV_2l3a4rVJhxIcKeq" target="_blank">GIVE FEEDBACK</a>
                         </button>
                         <button className="button" type="button" onClick={(event) => pressTroubleShooting()}> Need Help? </button>
+                        
 
                     </div>
                 </div>
