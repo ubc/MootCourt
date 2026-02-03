@@ -33,8 +33,8 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = false, pauseAnimation = t
     });
   };
 
-// Set up an effect to load and initialize animations for a 3D model based on a given model URL.
-// This effect runs whenever the 'modelUrl' dependency changes.
+  // Set up an effect to load and initialize animations for a 3D model based on a given model URL.
+  // This effect runs whenever the 'modelUrl' dependency changes.
   useEffect(() => {
     const loader = new GLTFLoader();
     loader.load(modelUrl, (gltf) => {
@@ -42,7 +42,7 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = false, pauseAnimation = t
       if (gltf.animations.length > 0) {
         const mixer = new THREE.AnimationMixer(gltf.scene);
         setMixer(mixer);
-         // Create an array of animation data objects based on the loaded animation clips
+        // Create an array of animation data objects based on the loaded animation clips
         const newAnimations = gltf.animations.map((clip) => {
           const action = mixer.clipAction(clip);
           action.clampWhenFinished = true;
@@ -70,6 +70,7 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = false, pauseAnimation = t
     if (animations.length > 0) {
       const crossfadeDuration = 2;
       const speakingClip = animations.find((clip) => clip.action.getClip().name === 'talking');
+      speakingClip.action.clampWhenFinished = true;
       const randomClips = animations.filter(
         (clip) => clip.action.getClip().name !== 'talking'
       );
@@ -78,10 +79,10 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = false, pauseAnimation = t
       // while logging its name, and ensure any random animations are stopped.
       if (isSpeaking) {
         if (speakingClip) {
-          
+
           stopRandomAnimations();
           setCurrentAnimationIndex(0);
-          
+
           speakingClip.action.reset();
           speakingClip.action.setLoop(THREE.LoopRepeat);
           speakingClip.action.fadeIn(crossfadeDuration);
@@ -89,10 +90,8 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = false, pauseAnimation = t
 
         }
       } else {
-        
-        // speakingClip.action.fadeOut(crossfadeDuration, () => {
-        //   speakingClip.action.stop();
-        // });
+
+
 
         shuffleArray(randomClips);
 
@@ -103,23 +102,23 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = false, pauseAnimation = t
             const nextIndex = (prevIndex + 1) % randomClips.length;
             const currentClip = randomClips[prevIndex];
             const nextClip = randomClips[nextIndex];
-      
-            
-            currentClip.action.clampWhenFinished=true;
+
+
+            currentClip.action.clampWhenFinished = true;
             nextClip.action.reset();
             nextClip.action.setLoop(THREE.LoopOnce);
             nextClip.action.fadeIn(crossfadeDuration);
             nextClip.action.play();
 
             // Fade out the current animation and stop it after the fade-out is complete
-            currentClip.action.clampWhenFinished=true;
+            currentClip.action.clampWhenFinished = true;
             currentClip.action.fadeOut(crossfadeDuration, () => {
               currentClip.action.stop();
               currentClip.action.reset(); // Reset the animation state after stopping
             });
-      
+
             // Fade in and play the next animation
-      
+
             return nextIndex;
           });
         };
@@ -129,11 +128,32 @@ function Model({ modelUrl, pos, rot, sca, isSpeaking = false, pauseAnimation = t
           randomClips[0].duration * 1000.0
         );
 
-        
-        randomClips[0].action.clampWhenFinished=true;
+
+        // if (speakingClip.action.isRunning()) {
+        //   speakingClip.action.fadeOut(crossfadeDuration, () => {
+        //     speakingClip.action.stop();
+        //   });
+        // }
+        // randomClips[0].action.clampWhenFinished = true;
+        // randomClips[0].action.setLoop(THREE.LoopOnce);
+        // //randomClips[0].action.fadeIn(crossfadeDuration);
+        // randomClips[0].action.play();
+
+
+        speakingClip.action.clampWhenFinished = true;
+        randomClips[0].action.reset();
         randomClips[0].action.setLoop(THREE.LoopOnce);
-        //randomClips[0].action.fadeIn(crossfadeDuration);
+        randomClips[0].action.fadeIn(0);
         randomClips[0].action.play();
+
+        // Fade out the current animation and stop it after the fade-out is complete
+        speakingClip.action.clampWhenFinished = true;
+        
+        randomClips[0].action.setLoop(THREE.LoopOnce);
+        speakingClip.action.isRunning()&&speakingClip.action.fadeOut(crossfadeDuration, () => {
+          speakingClip.action.stop();
+          //speakingClip.action.reset(); // Reset the animation state after stopping
+        });
 
         return () => {
           clearInterval(intervalRef.current);
