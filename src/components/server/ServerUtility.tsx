@@ -1,4 +1,5 @@
 import { useMootCourtStore } from "../MootCourtState";
+import { REALTIME_SAMPLE_RATE, wavToFloat32 } from "./audio";
 
 type Status = { connected: boolean; error: string; speaking: boolean };
 type TranscriptListener = (text: string, duration: number | null) => void;
@@ -7,7 +8,6 @@ type TranscriptListener = (text: string, duration: number | null) => void;
 export class ServerUtility {
     static socket: WebSocket | null = null;
     static Blobs: Blob[] = [];
-    static audioPlayer: HTMLAudioElement | null = null;
     static isAudioPlaying = false;
     static accumulatedUserSpeech = "";
     static talkStartTime: number | null = null;
@@ -19,7 +19,10 @@ export class ServerUtility {
     private static awaitingResponse = false;
     private static paused = false;
     private static lastError = "";
-    private static audioUrl: string | null = null;
+    private static audioContext: AudioContext | null = null;
+    private static sources = new Set<AudioBufferSourceNode>();
+    private static nextStartTime = 0;
+    private static draining = false;
     private static submittedDuration: number | null = null;
     private static transcriptReceived = false;
     private static statusListeners = new Set<(status: Status) => void>();
@@ -64,7 +67,7 @@ export class ServerUtility {
             if (event.data instanceof Blob) {
                 if (!this.ready || !this.awaitingResponse) return;
                 this.Blobs.push(event.data);
-                this.playNextBlob();
+                this.scheduleQueuedAudio();
                 return;
             }
             try {
@@ -142,7 +145,7 @@ export class ServerUtility {
 
     static sendRecordingToServer(pcm: Uint8Array, duration: number | null) {
         if (!this.isWebSocketConnected() || !this.socket) throw new Error("The local OpenAI session is not connected.");
-        if (this.awaitingResponse || this.audioPlayer || this.Blobs.length) throw new Error("Wait for the judge to finish replying.");
+        if (this.awaitingResponse || this.sources.size || this.Blobs.length) throw new Error("Wait for the judge to finish replying.");
         if (pcm.length < 4800) throw new Error("Please hold Enter for at least a moment before releasing it.");
         if (pcm.length > 24000 * 2 * 600) throw new Error("Please keep each recording under 10 minutes.");
         this.lastError = "";
@@ -167,57 +170,98 @@ export class ServerUtility {
 
     static setAudioPaused(paused: boolean) {
         this.paused = paused;
-        if (paused) this.audioPlayer?.pause();
-        else if (this.audioPlayer) this.resumePlayer();
-        else this.playNextBlob();
+        // Suspending freezes the context clock, so everything already scheduled
+        // resumes exactly where it stopped instead of being restarted.
+        if (paused) this.audioContext?.suspend().catch(() => {});
+        else { this.resumeContext(); this.scheduleQueuedAudio(); }
         this.notify();
     }
 
-    private static resumePlayer() {
-        const player = this.audioPlayer;
-        player?.play().catch(() => {
-            if (this.audioPlayer === player) this.fail("Audio playback failed. Check browser audio permissions and start a new session.");
+    private static getAudioContext(): AudioContext | null {
+        if (this.audioContext) return this.audioContext;
+        const Constructor: typeof AudioContext | undefined = window.AudioContext || (window as any).webkitAudioContext;
+        if (!Constructor) {
+            this.fail("This browser cannot play the judge's audio. Use a current version of Chrome, Edge, Firefox, or Safari.");
+            return null;
+        }
+        // Matching the stream's own rate stops the browser resampling each chunk in
+        // isolation, which would put the boundary artifacts back.
+        this.audioContext = new Constructor({ sampleRate: REALTIME_SAMPLE_RATE });
+        this.nextStartTime = 0;
+        return this.audioContext;
+    }
+
+    private static resumeContext() {
+        const context = this.audioContext;
+        if (this.paused || context?.state !== "suspended") return;
+        context.resume().catch(() => {
+            if (this.audioContext === context) this.fail("Audio playback failed. Check browser audio permissions and start a new session.");
         });
     }
 
-    private static playNextBlob() {
-        if (this.audioPlayer || this.paused || !this.Blobs.length) return;
-        this.audioUrl = URL.createObjectURL(this.Blobs.shift()!);
-        const player = new Audio(this.audioUrl);
-        this.audioPlayer = player;
-        this.isAudioPlaying = true;
-        player.onended = () => {
-            if (this.audioPlayer !== player) return;
-            this.releasePlayer();
-            this.playNextBlob();
-            this.unlockIfFinished();
-        };
-        player.onerror = () => this.fail("Could not play the judge's audio. Start a new session.");
-        this.notify();
-        this.resumePlayer();
+    // Decode one chunk at a time so the samples stay in arrival order.
+    private static async scheduleQueuedAudio() {
+        if (this.draining || this.paused || !this.Blobs.length) return;
+        this.draining = true;
+        try {
+            while (!this.paused && this.Blobs.length) {
+                const blob = this.Blobs[0];
+                const wav = new Uint8Array(await blob.arrayBuffer());
+                // An error or disconnect replaces the queue while we were decoding.
+                if (this.Blobs[0] !== blob) return;
+                this.Blobs.shift();
+                this.scheduleChunk(wav);
+            }
+        } catch {
+            this.fail("Could not play the judge's audio. Start a new session.");
+        } finally {
+            this.draining = false;
+        }
     }
 
-    private static releasePlayer() {
-        if (this.audioPlayer) {
-            this.audioPlayer.onended = null;
-            this.audioPlayer.onerror = null;
-            this.audioPlayer.pause();
-            this.audioPlayer.removeAttribute("src");
-        }
-        if (this.audioUrl) URL.revokeObjectURL(this.audioUrl);
-        this.audioUrl = null;
-        this.audioPlayer = null;
-        this.isAudioPlaying = false;
+    // Chunks are consecutive slices of one PCM stream, so butting them together on a
+    // single clock reproduces the original waveform. Playing each as its own clip left
+    // a gap and a step at every boundary, and that is what clicked.
+    private static scheduleChunk(wav: Uint8Array) {
+        const samples = wavToFloat32(wav);
+        const context = samples.length ? this.getAudioContext() : null;
+        if (!context) return;
+        const buffer = context.createBuffer(1, samples.length, REALTIME_SAMPLE_RATE);
+        buffer.copyToChannel(samples, 0);
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        source.connect(context.destination);
+        source.onended = () => {
+            if (!this.sources.delete(source)) return;
+            source.disconnect();
+            this.isAudioPlaying = this.sources.size > 0;
+            this.unlockIfFinished();
+        };
+        // A short lead absorbs network jitter on the first chunk and after an underrun.
+        const startAt = Math.max(this.nextStartTime, context.currentTime + 0.08);
+        this.nextStartTime = startAt + buffer.duration;
+        this.sources.add(source);
+        this.isAudioPlaying = true;
+        source.start(startAt);
+        this.resumeContext();
+        this.notify();
     }
 
     private static stopPlayback() {
-        this.releasePlayer();
+        this.sources.forEach(source => {
+            source.onended = null;
+            try { source.stop(); } catch { /* already ended */ }
+            source.disconnect();
+        });
+        this.sources.clear();
+        this.nextStartTime = 0;
+        this.isAudioPlaying = false;
         this.Blobs = [];
     }
 
     private static unlockIfFinished() {
         // A temporary gap between chunks does not mean the judge has finished.
-        if (!this.awaitingResponse && !this.audioPlayer && !this.Blobs.length) {
+        if (!this.awaitingResponse && !this.sources.size && !this.Blobs.length) {
             useMootCourtStore.getState().setInputLock(false);
         }
         this.notify();
@@ -247,6 +291,8 @@ export class ServerUtility {
         this.talkDuration = null;
         this.wordCount = 0;
         this.stopPlayback();
+        this.audioContext?.close().catch(() => {});
+        this.audioContext = null;
         useMootCourtStore.getState().setInputLock(false);
         this.notify();
     }
