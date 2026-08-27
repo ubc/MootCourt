@@ -7,7 +7,7 @@ Reviewed: 27 August 2026.
 
 - Browser application only. Unreal development was discontinued; no Unreal migration is needed.
 - WebSockets are required. Use a local Node WebSocket service that connects to OpenAI Realtime with the server-side API key.
-- Local Mac use for the user and Richard. Do not change or depend on the existing EC2/live deployment.
+- Local Mac use for the user. Do not change or depend on the existing EC2/live deployment.
 - Preserve hold-Enter/release behavior, assessment calculations/data shape, and existing storage behavior. No assessment redesign, new persistence, or hosted authentication project.
 - The user supplies the API key in `.env.server.local`; do not put it in the browser or source control.
 - Start both processes with `npm run dev`. See the README for setup and verification commands.

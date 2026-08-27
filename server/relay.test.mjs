@@ -7,7 +7,7 @@ import { readConfig } from './config.mjs';
 import { pcmToWav } from './audio.mjs';
 
 const config = { ...readConfig({ OPENAI_API_KEY: 'test-only-key' }), port: 0 };
-const origin = 'http://localhost:3000';
+const origin = config.origins[0];
 const waitFor = async predicate => {
   const deadline = Date.now() + 3000;
   while (!predicate()) {

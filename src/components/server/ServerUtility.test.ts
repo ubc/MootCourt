@@ -39,7 +39,7 @@ afterEach(() => {
 });
 
 test('connects locally and only becomes ready after upstream configuration', () => {
-    expect(socket.url).toBe('ws://127.0.0.1:8787/realtime');
+    expect(socket.url).toBe('ws://127.0.0.1:43128/realtime');
     expect(ServerUtility.isWebSocketConnected()).toBe(false);
     socket.receive({ type: 'ready' });
     expect(ServerUtility.isWebSocketConnected()).toBe(true);

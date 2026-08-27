@@ -18,7 +18,7 @@ const browserEnv = { ...process.env };
 for (const name of Object.keys(browserEnv)) if (name.startsWith('OPENAI_')) delete browserEnv[name];
 const child = spawn(process.execPath, [require.resolve('react-scripts/scripts/start.js')], {
   stdio: 'inherit',
-  env: { ...browserEnv, HOST: '127.0.0.1', BROWSER: 'none', REACT_APP_REALTIME_URL: `ws://127.0.0.1:${config.port}/realtime` },
+  env: { ...browserEnv, PORT: String(config.appPort), HOST: '127.0.0.1', BROWSER: 'none', REACT_APP_REALTIME_URL: `ws://127.0.0.1:${config.port}/realtime` },
 });
 let stopping = false;
 async function stop(code = 0) {

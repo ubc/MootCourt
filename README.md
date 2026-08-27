@@ -24,9 +24,13 @@ The Unreal project is not part of this application.
 3. Copy `.env.server.example` to `.env.server.local` if it does not already exist.
 4. Set `OPENAI_API_KEY` in `.env.server.local` to your OpenAI API project key. Never put it in a `REACT_APP_*` variable. This file is ignored by Git and read only by the Node service.
 5. Run `npm run dev` to start both the app and local service.
-6. Open [the local app](http://127.0.0.1:3000), choose IntelliJudge, allow microphone access, and **hold Enter to speak; release Enter for the reply**, as before.
+6. Open [the local app](http://127.0.0.1:43127), choose IntelliJudge, allow microphone access, and **hold Enter to speak; release Enter for the reply**, as before.
 
-Each developer, including Richard, follows the same steps on their own Mac and supplies their own local configuration. The service listens on `127.0.0.1:8787` and accepts only the local app's origin. Do not expose it publicly. Press Ctrl+C to stop both processes.
+Each developer, follows the same steps on their own Mac and supplies their own local configuration. The app defaults to port `43127`; the service listens on `127.0.0.1:43128` and accepts only the local app's origin. Do not expose it publicly. Press Ctrl+C to stop both processes.
+
+If you already have `.env.server.local` from an earlier version, update `PORT=43127` and `REALTIME_PORT=43128` there; existing environment values override the defaults.
+
+Browser storage is tied to the app's address, including its port. Saved data at the old address is not deleted, but does not automatically appear at the new address.
 
 `npm start` still starts only the frontend; use `npm run dev` for the complete local setup, or `npm run server` in a second terminal. Restart after changing the server environment file. If ports are busy, set `PORT` and/or `REALTIME_PORT` there and use `npm run dev` so the two processes stay in sync.
 

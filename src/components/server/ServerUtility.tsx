@@ -57,7 +57,7 @@ export class ServerUtility {
         if (this.socket && (this.socket.readyState <= WebSocket.OPEN || this.hadSession)) return this.socket;
         this.ready = false;
         this.lastError = "";
-        const socket = new WebSocket(process.env.REACT_APP_REALTIME_URL || "ws://127.0.0.1:8787/realtime");
+        const socket = new WebSocket(process.env.REACT_APP_REALTIME_URL || "ws://127.0.0.1:43128/realtime");
         this.socket = socket;
         socket.onmessage = event => {
             if (this.socket !== socket) return;
