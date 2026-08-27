@@ -2,6 +2,10 @@ import React, { lazy, Suspense, useEffect, useState } from "react";
 import "./App.css";
 import defaultData from "./components/general/default_settings.json";
 import AppLoader from "./components/general/AppLoader";
+import { useAuth } from "./auth/useAuth";
+import { startPracticeSession, savePracticeSession } from "./session/practiceSession";
+
+const LazyLogin = lazy(() => import("./components/ui/LoginPage"));
 
 const Landing = 0;
 const Scene = 1;
@@ -18,6 +22,10 @@ function App() {
   const [paused, setPaused] = useState(false);
   const [judgeElapsedTime, setJudgeElapsedTime] = useState(0);
 
+  // Reports "anonymous" whenever the server runs with SHOW_LOGIN off, which
+  // leaves every branch below exactly as it was before login existed.
+  const auth = useAuth();
+
   const updateConfig = (nextConfig: any) => {
     console.log("New Configuration: ", JSON.stringify(nextConfig));
     setConfig(nextConfig);
@@ -27,6 +35,18 @@ function App() {
     setAppState(nextState);
     if (nextState === Scene) {
       setSubtitleText(config.judgeIntroSpeech);
+      // Only when entering from the landing page. Resuming from the pause menu
+      // also routes through here, and starting again there would orphan the
+      // row holding the argument so far and save the transcript to a new one.
+      if (appState === Landing) {
+        // Fire-and-forget: storage is optional and must never delay entry.
+        startPracticeSession(config);
+      }
+    }
+    if (nextState === EndPage) {
+      // AudioComponent writes the transcript and timings straight onto config
+      // as the argument proceeds, so by here they are complete.
+      savePracticeSession(config, judgeElapsedTime);
     }
     console.log("current appState is:", nextState);
     console.log("current config is:", config);
@@ -51,7 +71,17 @@ function App() {
     console.log(`Loading state changed: ${loading} time${Date.now()}`);
   }, [loading]);
 
-  if (loading) return <AppLoader />;
+  if (loading || auth.status === "loading") return <AppLoader />;
+
+  // Only reachable with SHOW_LOGIN on: the courtroom is not rendered until CWL
+  // has identified the student.
+  if (auth.status === "signedOut") {
+    return (
+      <Suspense fallback={<AppLoader />}>
+        <LazyLogin />
+      </Suspense>
+    );
+  }
 
   return (
     <Suspense fallback={null}>
