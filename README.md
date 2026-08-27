@@ -34,6 +34,29 @@ Browser storage is tied to the app's address, including its port. Saved data at 
 
 `npm start` still starts only the frontend; use `npm run dev` for the complete local setup, or `npm run server` in a second terminal. Restart after changing the server environment file. If ports are busy, set `PORT` and/or `REALTIME_PORT` there and use `npm run dev` so the two processes stay in sync.
 
+## Database and CWL login
+
+Practice sessions can be stored in MongoDB, and students can optionally sign in
+with CWL. Both are off unless configured, so the steps above still work on their
+own.
+
+Moot Court uses the shared [`ubc/tlef-mongodb-docker`](https://github.com/ubc/tlef-mongodb-docker)
+MongoDB instance on `localhost:27017` — the same one BiocBot and GRASP use — and
+takes its own database name on it. Start that project if it is not already
+running, then set `MONGODB_URI` and `MONGODB_DB_NAME` in `.env.server.local`
+(see `.env.server.example`).
+
+**`SHOW_LOGIN` controls whether this deployment collects personal information.**
+With it off — the default — there is no login screen, the `/auth/*` routes are
+not mounted at all, no CWL attribute is read or stored, and practice sessions
+are saved with no identity attached. That is the state to deploy in while a PIA
+is pending. Turning it on requires MongoDB, a session secret and a configured
+identity provider; the server refuses to start half-configured.
+
+Full setup, the local fake-CWL registration, the stored document shapes, and the
+staging/production variables are in
+[docs/cwl-login.md](docs/cwl-login.md).
+
 ### Behavior and configuration
 
 - Courtroom UI, hold/release controls, queued audio pause/resume, assessment calculations/data shape, and existing browser storage are retained. The migration does not fix or redesign the existing assessment metrics.

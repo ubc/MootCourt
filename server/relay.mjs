@@ -13,23 +13,37 @@ function closeSocket(socket) {
   socket.terminate();
 }
 
-export function createRelay(config, { connectUpstream, setupTimeoutMs = 15000, turnTimeoutMs = 120000 } = {}) {
+export function createRelay(config, { connectUpstream, setupTimeoutMs = 15000, turnTimeoutMs = 120000, requestListener } = {}) {
   const connect = connectUpstream || (() => new WebSocket(
     `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(config.model)}`,
     { headers: { Authorization: `Bearer ${config.apiKey}` }, handshakeTimeout: setupTimeoutMs, maxPayload: 16 * 1024 * 1024 },
   ));
+  // Loopback plus whatever hostname the deployment is actually served from,
+  // so the same check works locally and behind a real domain in production.
+  const allowedHosts = new Set(['127.0.0.1', 'localhost']);
+  for (const origin of config.origins || []) {
+    try { allowedHosts.add(new URL(origin).hostname); } catch { /* ignore malformed origin */ }
+  }
   const validHost = req => {
     try {
-      const host = new URL(`http://${req.headers.host}`).hostname;
-      return host === '127.0.0.1' || host === 'localhost';
+      return allowedHosts.has(new URL(`http://${req.headers.host}`).hostname);
     } catch { return false; }
   };
   const server = http.createServer((req, res) => {
+    if (!validHost(req)) { res.setHeader('Cache-Control', 'no-store'); res.writeHead(403).end(); return; }
+    if (req.method === 'GET' && req.url === '/health') {
+      res.setHeader('Cache-Control', 'no-store');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', configured: Boolean(config.apiKey) }));
+      return;
+    }
+    // The Express app (API, auth, and in production the built frontend) shares
+    // this server so the browser sees a single origin — which SAML requires,
+    // since the IdP posts its assertion back and the session cookie has to be
+    // readable by the same origin that serves the app.
+    if (requestListener) { requestListener(req, res); return; }
     res.setHeader('Cache-Control', 'no-store');
-    if (!validHost(req)) { res.writeHead(403).end(); return; }
-    if (req.method !== 'GET' || req.url !== '/health') { res.writeHead(404).end(); return; }
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', configured: Boolean(config.apiKey) }));
+    res.writeHead(404).end();
   });
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_RECORDING_BYTES, perMessageDeflate: false });
   server.on('upgrade', (req, socket, head) => {
