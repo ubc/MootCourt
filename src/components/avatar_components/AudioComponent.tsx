@@ -1,12 +1,9 @@
 import { Html } from "@react-three/drei";
 import React, { useEffect, useRef, useState } from "react";
-import Recorder from "../general/Recorder";
-import { createModel, KaldiRecognizer, Model } from "vosk-browser";
 import "../general/timer.css";
 import { useMootCourtStore } from "../MootCourtState";
-import { color } from "d3";
 import { ServerUtility } from "../server/ServerUtility";
-import { waitFor } from "@testing-library/react";
+import { audioBufferToPcm16 } from "../server/audio";
 declare module "react" {
   interface CSSProperties {
     "--dynamic-color"?: string; // Declare your custom property
@@ -133,321 +130,25 @@ function AudioComponent({
   //
   //----------------------------------------------------------------------------------------------------------------------
 
-  const [userInput, setUserInput] = useState("");
-  const [micIcon, setMicIcon] = useState<JSX.Element>(micReady);
-  const [micColor, setMicColor] = useState("#ffffff"); // Default color
   const [showPopup, setShowPopup] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [isPopupAnimating, setIsPopupAnimating] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState(ServerUtility.getStatus());
+  const isWebSocketConnected = connectionStatus.connected;
   const recorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const isInputLocked = useMootCourtStore((state) => state.isInputLocked);
   const setInputLock = useMootCourtStore((state) => state.setInputLock);
-  const [isReconnecting, setIsReconnecting] = useState(false);
-
+  const micIcon = isInputLocked ? micWaiting : isRecording ? micRecording : micReady;
+  const micColor = isInputLocked ? "#FA5F55" : isRecording ? "#228B22" : "#ffffff";
   const conversation = useRef<Array<any>>([]);
   const runningTimestamps = useRef<Array<any>>([]);
-
-  // track latest recording state inside event handlers
-  const isRecordingRef = useRef(false);
-  useEffect(() => {
-    isRecordingRef.current = isRecording;
-  }, [isRecording]);
-
-  // prevent key-repeat from re0triggering startRecording()
   const enterHeldRef = useRef(false);
+  const startingRef = useRef(false);
+  const processingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const popupTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  //let socket: WebSocket;
-
-  const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
-
-  useEffect(() => {
-    // Function to check WebSocket connection status
-    const checkWebSocketStatus = () => {
-      setIsWebSocketConnected(ServerUtility.isWebSocketConnected());
-    };
-
-    // Set up an interval to check every 1 second
-    const interval = setInterval(checkWebSocketStatus, 2000);
-
-    // Cleanup the interval on component unmount
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleNoSpeechDetected = () => {
-    if (isPopupAnimating) return;
-
-    //console.log("Clicked nospeechdetectged");
-    setShowPopup(true); // Show the popup
-    setIsPopupAnimating(true);
-
-    setTimeout(() => {
-      setShowPopup(false);
-      setTimeout(() => {
-        setIsPopupAnimating(false); // Allow re-trigger after animation ends
-      }, 500); // 500ms fade-out delay
-    }, 5500);
-  };
-
-  const handleRecordingStateChange = (isRecording: boolean) => {
-    if (isInputLocked) {
-      setMicIcon(micWaiting);
-    } else if (isRecording) {
-      setMicIcon(micRecording);
-    } else {
-      setMicIcon(micReady);
-    }
-  };
-
-  const startRecording = async () => {
-    if (useMootCourtStore.getState().isInputLocked) {
-      console.warn("Input is locked. Cannot start recording.");
-      return;
-    }
-
-    if (!ServerUtility.isWebSocketConnected()) {
-      setInputLock(true);
-      console.warn("Cannot start recording, websocket not connected");
-      ServerUtility.initializeWebSocket();
-      setIsWebSocketConnected(ServerUtility.isWebSocketConnected());
-      const isConnected = await waitForWebSocketConnection(500);
-      setInputLock(false);
-      if (!isConnected) {
-        return;
-      }
-    }
-
-    setIsRecording(true);
-    ServerUtility.startTalking();
-
-    try {
-      const mimeTypeSetting = ServerUtility.getMimeType(); // "audio/webm";
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      var mediaRecorder = new MediaRecorder(stream, {
-        mimeType: mimeTypeSetting,
-      });
-      recorderRef.current = mediaRecorder;
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, {
-          type: mimeTypeSetting,
-        });
-
-        audioChunksRef.current = []; // Reset for next recording
-        const isValidSpeech = await analyzeAudioContent(audioBlob);
-        if (isValidSpeech) sendAudioToServer(audioBlob);
-        else {
-          handleNoSpeechDetected();
-          console.log("Recording invalid, no speech detected");
-        }
-
-        setMicIcon(micReady);
-        setMicColor("#ffffff");
-        ServerUtility.stopTalking(isValidSpeech);
-        setIsRecording(false);
-        setInputLock(isValidSpeech);
-      };
-
-      mediaRecorder.start();
-      setMicIcon(micRecording);
-      setMicColor("#228B22");
-    } catch (error) {
-      console.error("Error starting recording:", error);
-    }
-    //} catch (error) {
-    //    console.error("Error starting recording:", error);
-    //}
-  };
-
-  const analyzeAudioContent = async (audioBlob) => {
-    const audioContext = new AudioContext();
-    const arrayBuffer = await audioBlob.arrayBuffer();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-    const channelData = audioBuffer.getChannelData(0); // Analyze the first channel
-
-    // Calculate RMS
-    const rms = Math.sqrt(
-      channelData.reduce((sum, sample) => sum + sample ** 2, 0) /
-        channelData.length
-    );
-
-    const threshold = 0.02; // Adjust based on testing and environment noise
-    const hasSpeech = rms > threshold;
-
-    console.log(`RMS: ${rms}, Speech Detected: ${hasSpeech}`);
-    return hasSpeech;
-  };
-
-  const stopRecording = () => {
-    if (recorderRef.current) {
-      if (recorderRef.current.state === "paused") {
-        recorderRef.current.resume(); // Resume before stopping
-      }
-      recorderRef.current.stop();
-      //setMicIcon(micReady);
-      //ServerUtility.stopTalking();
-      //setIsRecording(false);
-      //setInputLock(true);
-    }
-  };
-
-  const pauseRecording = () => {
-    if (recorderRef.current) {
-      recorderRef.current.pause();
-    }
-  };
-  const resumeRecording = () => {
-    if (recorderRef.current) {
-      recorderRef.current.resume();
-    }
-  };
-
-  const handleKeyUp = (event: KeyboardEvent) => {
-    if (event.key === "Enter" && !isRecording) {
-      startRecording();
-    } else if (event.key === "Enter" && isRecording) {
-      handleStopOrReconnect();
-    }
-  };
-
-  const handleStopOrReconnect = async () => {
-    if (isReconnecting) {
-      console.log("Already reconnecting, returning");
-      return;
-    }
-
-    if (ServerUtility.isWebSocketConnected()) {
-      console.log("Stopping recording");
-      stopRecording();
-    } else {
-      setIsReconnecting(true);
-      var reconnecting = true;
-      pauseRecording();
-      console.log(
-        "Connection is closed, pausing recording while attempting to reconnect"
-      );
-
-      while (reconnecting) {
-        ServerUtility.initializeWebSocket();
-        setIsWebSocketConnected(ServerUtility.isWebSocketConnected());
-
-        console.log("Attempting to reconnect...");
-
-        const isConnected = await waitForWebSocketConnection(500);
-        if (isConnected) {
-          console.log("Reconnected successfully");
-          setIsReconnecting(false);
-          reconnecting = false;
-          stopRecording();
-          return;
-        }
-      }
-    }
-  };
-
-  const sendAudioToServer = async (audioBlob: Blob) => {
-    try {
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const byteArray = new Uint8Array(arrayBuffer);
-      if (ServerUtility.socket) {
-        ServerUtility.sendRecordingToServer(ServerUtility.socket, byteArray);
-        console.log("Audio sent successfully.");
-
-        ServerUtility.socket.onmessage = function (event) {
-          console.log("Received a response");
-          if (typeof event.data === "string") {
-            if (event.data.substring(0, 5) == "[SUB]")
-              ServerUtility.accumulateUserSpeech(event.data.substring(5));
-
-            if (!isRecording) {
-              ServerUtility.countUserSpeech();
-              sendToAssessment(
-                ServerUtility.accumulatedUserSpeech,
-                ServerUtility.talkDuration
-              );
-              setUserInput(ServerUtility.accumulatedUserSpeech);
-            }
-          } else {
-            ServerUtility.playResponseAsAudio(event.data);
-          }
-          //ServerUtility.playResponseAsAudio(event.data);
-        };
-      } else {
-        console.error("Websocket not available, cannot send recording");
-      }
-    } catch (error) {
-      console.error("Error sending audio to server:", error);
-    }
-  };
-
-  const waitForWebSocketConnection = async (timeoutMs = 500) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(ServerUtility.isWebSocketConnected());
-      }, timeoutMs);
-    });
-  };
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Enter") return;
-
-      // ignore OS key-repeat while holding Enter
-      if (event.repeat) return;
-
-      // do nothing if already marked Enter as held
-      if (enterHeldRef.current) return;
-
-      enterHeldRef.current = true;
-
-      // start only if it isn't already recording
-      if (!isRecordingRef.current) startRecording();
-    };
-
-    const onKeyUp = (event: KeyboardEvent) => {
-      if (event.key !== "Enter") return;
-
-      enterHeldRef.current = false;
-
-      // release = stop (or reconnect + stop)
-      if (isRecordingRef.current) {
-        handleStopOrReconnect();
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (userInput.length > 0) {
-      onTranscriptChange(userInput);
-    }
-  }, [userInput]);
-
-  useEffect(() => {
-    // Ensure micIcon updates when isInputLocked changes
-    if (isInputLocked) {
-      setMicIcon(micWaiting);
-      setMicColor("#FA5F55");
-    } else {
-      setMicIcon(micReady);
-      setMicColor("#ffffff");
-    }
-  }, [isInputLocked]); // Dependency on isInputLocked
-
+  // Keep the assessment inputs and calculations exactly as before the migration.
   const sendToAssessment = (transcript, startTime) => {
     runningTimestamps.current.push([transcript, startTime]);
     config.runningTimestamps = runningTimestamps.current;
@@ -458,10 +159,162 @@ function AudioComponent({
     );
     config.conversation = conversation.current;
   };
+  const transcriptHandlerRef = useRef((text: string, duration: number | null) => {});
+  transcriptHandlerRef.current = (text, duration) => {
+    sendToAssessment(text, duration);
+    onTranscriptChange(text);
+  };
+
+  useEffect(() => ServerUtility.subscribeStatus(setConnectionStatus), []);
+  useEffect(() => ServerUtility.subscribeTranscript((text, duration) => {
+    transcriptHandlerRef.current(text, duration);
+  }), []);
+
+  const handleNoSpeechDetected = () => {
+    setShowPopup(true);
+    clearTimeout(popupTimerRef.current);
+    popupTimerRef.current = setTimeout(() => setShowPopup(false), 5500);
+  };
+
+  const analyzeAudioContent = async (audioBlob: Blob) => {
+    const audioContext = new AudioContext();
+    try {
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      const channelData = audioBuffer.getChannelData(0);
+      const rms = Math.sqrt(channelData.reduce((sum, sample) => sum + sample ** 2, 0) / channelData.length);
+      return { audioBuffer, isValidSpeech: rms > 0.02 };
+    } finally {
+      await audioContext.close();
+    }
+  };
+
+  const startRecording = async () => {
+    if (appPaused || startingRef.current || processingRef.current ||
+        recorderRef.current?.state === "recording" || useMootCourtStore.getState().isInputLocked) return;
+    startingRef.current = true;
+    try {
+      if (!await ServerUtility.waitForConnection()) return;
+      if (!mountedRef.current || !enterHeldRef.current) return;
+      ServerUtility.startTalking();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Permission can resolve after Enter was released or the scene was closed.
+      if (!mountedRef.current || !enterHeldRef.current) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      const mimeType = ServerUtility.getMimeType();
+      let mediaRecorder: MediaRecorder;
+      try { mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined); }
+      catch (error) { stream.getTracks().forEach(track => track.stop()); throw error; }
+      recorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(track => track.stop());
+        if (!mountedRef.current) return;
+        processingRef.current = true;
+        setIsRecording(false);
+        setInputLock(true);
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+        audioChunksRef.current = [];
+        let submitted = false;
+        try {
+          const { audioBuffer, isValidSpeech } = await analyzeAudioContent(audioBlob);
+          if (!mountedRef.current) return;
+          ServerUtility.stopTalking(isValidSpeech);
+          if (!isValidSpeech) {
+            handleNoSpeechDetected();
+          } else {
+            const pcm = await audioBufferToPcm16(audioBuffer);
+            if (!mountedRef.current) return;
+            ServerUtility.sendRecordingToServer(pcm, ServerUtility.talkDuration);
+            submitted = true;
+          }
+        } catch (error) {
+          if (mountedRef.current) ServerUtility.reportError(error instanceof Error ? error.message : "Could not send the recording.");
+        } finally {
+          processingRef.current = false;
+          if (mountedRef.current && !submitted) setInputLock(false);
+        }
+      };
+      mediaRecorder.onerror = () => {
+        stream.getTracks().forEach(track => track.stop());
+        mediaRecorder.onstop = null;
+        if (mountedRef.current) {
+          setIsRecording(false);
+          setInputLock(false);
+          ServerUtility.reportError("Microphone recording failed. Check your microphone permissions.");
+        }
+      };
+      try { mediaRecorder.start(); }
+      catch (error) { stream.getTracks().forEach(track => track.stop()); throw error; }
+      setIsRecording(true);
+    } catch (error) {
+      if (mountedRef.current) {
+        setIsRecording(false);
+        ServerUtility.reportError(error instanceof Error ? error.message : "Could not start the microphone.");
+      }
+    } finally {
+      startingRef.current = false;
+    }
+  };
+
+  const stopRecording = () => {
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+      recorder.stream.getTracks().forEach(track => track.stop());
+    }
+  };
+  const recordingActionsRef = useRef({ startRecording, stopRecording });
+  recordingActionsRef.current = { startRecording, stopRecording };
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" || event.repeat || enterHeldRef.current) return;
+      enterHeldRef.current = true;
+      recordingActionsRef.current.startRecording();
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key !== "Enter") return;
+      enterHeldRef.current = false;
+      recordingActionsRef.current.stopRecording();
+    };
+    const onBlur = () => {
+      enterHeldRef.current = false;
+      recordingActionsRef.current.stopRecording();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      mountedRef.current = false;
+      enterHeldRef.current = false;
+      clearTimeout(popupTimerRef.current);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+      const recorder = recorderRef.current;
+      if (recorder) {
+        recorder.onstop = null;
+        recorder.ondataavailable = null;
+        if (recorder.state !== "inactive") recorder.stop();
+        recorder.stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
 
   return (
-    <Html fullscreen>
-      {!appPaused}
+    <Html fullscreen style={{ pointerEvents: "none" }}>
+      {connectionStatus.error && (
+        <div role="alert" style={{ position: "absolute", top: 45, right: 10, maxWidth: 420, padding: 12, background: "#251b1b", color: "white", borderRadius: 6 }}>
+          {connectionStatus.error}
+        </div>
+      )}
 
       <div
         className="micIndicatorContainer"
@@ -608,11 +461,4 @@ function createConversation(
   let messages = [...conversation];
   messages.push(message);
   return messages;
-}
-
-async function blobToAudioBuffer(blob) {
-  console.log("BlobToAudioBuffer called");
-  const arrayBuffer = await blob.arrayBuffer();
-  const audioContext = new window.AudioContext();
-  return audioContext.decodeAudioData(arrayBuffer);
 }

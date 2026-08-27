@@ -91,21 +91,16 @@ export default function GeneralScene({
   //     setSubtitles(newTranscript);
   // };
 
-  const [serverMessage, setServerMessage] = useState(""); // State to hold the server message
-
   useEffect(() => {
     if (appConfig.isInteliJudge) {
       console.log("Intellijudge confirmed");
-      const socket = ServerUtility.initializeWebSocket();
-      socket.onmessage = function (event) {
-        const message = event.data;
-        setServerMessage(message); // Update state with the received message
-      };
+      ServerUtility.initializeWebSocket();
 
       useMootCourtStore.getState()
         .setSubtitles(`Counsel, you may begin your presentation.
             HOLD ENTER and begin presenting your case.
             RELEASE ENTER when you are done speaking.`);
+      return () => ServerUtility.disconnect();
     } else {
       useMootCourtStore.getState().setSubtitles(" ");
     }

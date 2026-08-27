@@ -1,63 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { Html } from "@react-three/drei";
+import { useEffect } from 'react';
 import { ServerUtility } from '../server/ServerUtility';
 
-let socket: WebSocket;
+type Props = {
+    setIsSpeaking: (speaking: boolean) => void;
+    appPaused: boolean;
+    config?: unknown;
+    updateConfig?: unknown;
+    userSpeechToTextInput?: string;
+};
 
-export default function ConverseComponent({ setIsSpeaking, appPaused, config, updateConfig, userSpeechToTextInput }) {
-    const [socketReady, setSocketReady] = useState(false);
-    const isAISpeaking = ServerUtility.isAudioPlaying;
-
-    // TODO: Move Websocket initialization to before User clicks "Start"
-    // Initialize WebSocket
-    useEffect(() => {
-        console.warn("ConverseWebsocket Initialized");
-        socket = ServerUtility.initializeWebSocket();
-        setSocketReady(true);
-
-    }, []);
-
-    useEffect(() => {
-        if (socketReady && userSpeechToTextInput.length !== 0) {
-            if (socket.readyState !== WebSocket.OPEN)
-            {
-                if (ServerUtility.socket)
-                    socket = ServerUtility.socket;
-            }
-
-            ServerUtility.sendMessageToServer(socket, userSpeechToTextInput);
-            getServerResponse(socket);
-        }
-    }, [userSpeechToTextInput]);
-
-    useEffect(() => {
-        setIsSpeaking(isAISpeaking);
-    }, [isAISpeaking]);
-
-    useEffect(() => {
-        if (isAISpeaking) {
-            ServerUtility.pauseOrResumeAudioResponse();
-        }
-    }, [appPaused]);
-
-    return (
-        <Html fullscreen>
-        </Html>
-    );
-}
-
-//---------------------------------------------------------------------------------------------------------------------
-// Helper Functions
-//---------------------------------------------------------------------------------------------------------------------
-
-function getServerResponse(socket: WebSocket) {
-    if (!socket) {
-        console.log('Invalid WebSocket - Did you check if the websocket is initialized?');
-        return;
-    }
-    socket.onmessage = function (event) {
-        //console.log("Received a message"); 
-
-        ServerUtility.playResponseAsAudio(event.data);
-    };
+export default function ConverseComponent({ setIsSpeaking, appPaused }: Props) {
+    useEffect(() => ServerUtility.subscribeStatus(status => setIsSpeaking(status.speaking)), [setIsSpeaking]);
+    useEffect(() => { ServerUtility.setAudioPaused(appPaused); }, [appPaused]);
+    // Audio is submitted once. Its transcript is for captions/assessment, not a
+    // second request for another judge response.
+    return null;
 }
