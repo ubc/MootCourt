@@ -233,7 +233,7 @@ export default function LandingPage({
         sca={[0.06, 0.06, 0.06]}
       />
 
-      <LandingPageJudgeAvatar listOfUtterances={lou} />
+      <LandingPageJudgeAvatar listOfUtterances={lou} gesture="thumbsUp" />
 
       <Html fullscreen>
         <LandingPageMenu

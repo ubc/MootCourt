@@ -10,6 +10,7 @@ function AnimationComponentNPC({
   modelUrl,
   animated,
   animationPause,
+  gesture = "none",
 }) {
   const [isAnimationPaused, setIsAnimationPaused] = useState(true);
 
@@ -33,6 +34,7 @@ function AnimationComponentNPC({
           sca={[2, 2, 2]}
           pauseAnimation={isAnimationPaused}
           animated={animated}
+          gesture={gesture}
           lookAtEnabled={true}
           lookAtRandom={true}
           lookMinInterval={1.5}

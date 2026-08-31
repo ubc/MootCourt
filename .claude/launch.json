@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "moot-court-web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["react-scripts", "start"],
+      "port": 3000
+    }
+  ]
+}

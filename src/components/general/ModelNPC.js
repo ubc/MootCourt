@@ -3,6 +3,11 @@ import { useFrame } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import PropTypes from "prop-types";
 import * as THREE from "three";
+import {
+  collectThumbsUpBones,
+  applyThumbsUp,
+  thumbsUpWeight,
+} from "./thumbsUpGesture";
 
 console.log("[ModelNPC] FILE LOADED");
 
@@ -100,6 +105,11 @@ function ModelNPC({
   pauseAnimation = false,
   animated = true,
 
+  // gesture layered on top of the clip: "none" or "thumbsUp"
+  gesture = "none",
+  gestureSide = "Right",
+  gestureOptions = null,
+
   // look-at control
   lookAtEnabled = true,
   lookAtTarget = null, // [x,y,z] world space OR null => camera
@@ -140,6 +150,9 @@ function ModelNPC({
 
   const bonesRef = useRef({ neck: [], head: [], eyeL: [], eyeR: [] });
 
+  const gestureBonesRef = useRef(null);
+  const gestureClockRef = useRef(0);
+
   const forwardFixQuatRef = useRef(makeForwardFixQuat(forwardFixYaw));
 
   const lookCtrlRef = useRef({
@@ -168,6 +181,24 @@ function ModelNPC({
     c.nextWait = randRange(lookMinInterval, lookMaxInterval);
     c.holdFor = randRange(lookMinHold, lookMaxHold);
   }, [lookMinInterval, lookMaxInterval, lookMinHold, lookMaxHold]);
+
+  // Kept out of the loader effect so switching the gesture on or off does not
+  // re-download the model.
+  useEffect(() => {
+    gestureClockRef.current = 0;
+    if (!gltf || gesture !== "thumbsUp") {
+      gestureBonesRef.current = null;
+      return;
+    }
+    const bones = collectThumbsUpBones(gltf.scene, gestureSide);
+    gestureBonesRef.current = bones;
+    if (!bones) {
+      console.warn(
+        "[ModelNPC] thumbsUp gesture skipped: rig is missing arm or hand bones",
+        modelUrl
+      );
+    }
+  }, [gltf, gesture, gestureSide, modelUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -272,6 +303,17 @@ function ModelNPC({
 
     // update matrices so bone.getWorldPosition is correct
     gltf.scene.updateMatrixWorld(true);
+
+    // layer the gesture over the clip the mixer just wrote. The clock is frozen
+    // while the app is paused so the pose holds instead of jumping on resume.
+    if (gestureBonesRef.current) {
+      if (!pauseAnimation) gestureClockRef.current += delta;
+      applyThumbsUp(
+        gestureBonesRef.current,
+        thumbsUpWeight(gestureClockRef.current, gestureOptions),
+        gestureClockRef.current
+      );
+    }
 
     // update gaze state machine
     const c = lookCtrlRef.current;
@@ -409,6 +451,10 @@ ModelNPC.propTypes = {
 
   pauseAnimation: PropTypes.bool,
   animated: PropTypes.bool,
+
+  gesture: PropTypes.oneOf(["none", "thumbsUp"]),
+  gestureSide: PropTypes.oneOf(["Left", "Right"]),
+  gestureOptions: PropTypes.object,
 
   lookAtEnabled: PropTypes.bool,
   lookAtTarget: PropTypes.any,

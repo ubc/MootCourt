@@ -2,7 +2,7 @@ import { Suspense, useEffect, useState, useRef } from 'react'
 import PropTypes from 'prop-types'
 import Avatar_NPC from '../avatar_components/AvatarNPC'
 
-function LandingPageJudgeAvatar({animated = true, listOfUtterances}) {
+function LandingPageJudgeAvatar({animated = true, listOfUtterances, gesture = 'none'}) {
     const [currentText, setText] = useState("initial text state")
     const [textIndex, setTextIndex] = useState(0)
     const [readyToSpeak, setReadyToSpeak] = useState(false)
@@ -22,6 +22,7 @@ function LandingPageJudgeAvatar({animated = true, listOfUtterances}) {
             rotation={[0, Math.PI/5, 0]}
             modelUrl={'models/judge_avatar/judge_landing_page.glb'}
             animated={animated}
+            gesture={gesture}
             animationPause={true} ></Avatar_NPC>
     </Suspense>)
 }
