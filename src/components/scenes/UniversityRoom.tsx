@@ -4,17 +4,18 @@ import * as THREE from "three";
 
 const warmWhite = "#f1f0eb";
 const oak = "#9a704b";
+const nightGlass = "#142b47";
 
 function CeilingLight({ x }: { x: number }) {
   return (
     <group position={[x, 4.32, -1.8]}>
       <mesh rotation={[Math.PI / 2, 0, 0]}>
         <boxGeometry args={[2.2, 0.82, 0.08]} />
-        <meshStandardMaterial color="#f7f7f2" emissive="#fffdf1" emissiveIntensity={0.35} />
+        <meshStandardMaterial color="#f8ead1" emissive="#ffd69d" emissiveIntensity={1.1} />
       </mesh>
       <rectAreaLight
         color="#fffaf0"
-        intensity={1.15}
+        intensity={2.1}
         width={2.2}
         height={0.82}
         rotation={[-Math.PI / 2, 0, 0]}
@@ -105,9 +106,9 @@ export default function UniversityRoom() {
         <mesh>
           <planeGeometry args={[5.15, 5.45]} />
           <meshStandardMaterial
-            color="#9fc7da"
-            emissive="#b9dceb"
-            emissiveIntensity={0.2}
+            color={nightGlass}
+            emissive="#0b1c33"
+            emissiveIntensity={0.35}
             roughness={0.16}
             metalness={0.04}
           />
@@ -115,11 +116,11 @@ export default function UniversityRoom() {
         {/* Soft, abstract campus silhouettes keep the view believable but quiet. */}
         <mesh position={[-1.65, -1.58, 0.025]}>
           <planeGeometry args={[1.05, 1.15]} />
-          <meshStandardMaterial color="#789688" roughness={0.9} />
+          <meshStandardMaterial color="#162f32" roughness={0.9} />
         </mesh>
         <mesh position={[0.2, -1.78, 0.025]}>
           <planeGeometry args={[1.5, 0.75]} />
-          <meshStandardMaterial color="#80988c" roughness={0.9} />
+          <meshStandardMaterial color="#1a3436" roughness={0.9} />
         </mesh>
         {[-2.58, -0.86, 0.86, 2.58].map((x) => (
           <mesh key={x} position={[x, 0, 0.065]}>
@@ -141,9 +142,9 @@ export default function UniversityRoom() {
           <mesh>
             <planeGeometry args={[2.35, 5.45]} />
             <meshStandardMaterial
-              color="#a7cede"
-              emissive="#c5e4ef"
-              emissiveIntensity={0.22}
+              color={nightGlass}
+              emissive="#0b1c33"
+              emissiveIntensity={0.35}
               roughness={0.15}
             />
           </mesh>
@@ -160,6 +161,61 @@ export default function UniversityRoom() {
             </mesh>
           ))}
         </group>
+      ))}
+
+      {/* A few warm campus windows beyond the glass establish the night setting. */}
+      {[
+        [-7.69, -0.15, -4.4],
+        [-7.69, 1.25, -3.2],
+        [-7.69, -1.05, -1.7],
+        [-7.69, 0.75, 0.1],
+      ].map(([x, y, z], index) => (
+        <mesh key={index} position={[x, y, z]} rotation={[0, Math.PI / 2, 0]}>
+          <planeGeometry args={[0.42, 0.56]} />
+          <meshBasicMaterial color="#e9b86f" toneMapped={false} />
+        </mesh>
+      ))}
+
+      {/* Rug and seminar grouping place the avatar within the room's depth. */}
+      <mesh position={[-1.4, -2.965, 0.15]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[6.7, 4.5]} />
+        <meshStandardMaterial color="#243e58" roughness={0.96} />
+      </mesh>
+      <mesh position={[-4.45, -2.15, -2.55]} castShadow receiveShadow>
+        <boxGeometry args={[2.85, 0.14, 1.2]} />
+        <meshStandardMaterial color="#b1845c" roughness={0.68} />
+      </mesh>
+      {[-5.45, -3.45].map((x) =>
+        [-2.95, -2.15].map((z) => (
+          <mesh key={`${x}-${z}`} position={[x, -2.57, z]}>
+            <cylinderGeometry args={[0.045, 0.045, 0.82, 12]} />
+            <meshStandardMaterial color="#606a70" metalness={0.62} roughness={0.35} />
+          </mesh>
+        )),
+      )}
+      <SeminarChair position={[-5.25, -3, -3.75]} rotation={0.15} />
+      <SeminarChair position={[-3.65, -3, -3.75]} rotation={-0.12} />
+
+      {/* Plant, books and pottery add university-room character without visual noise. */}
+      <group position={[2.85, -2.05, -4.55]}>
+        <mesh position={[0, -0.35, 0]} castShadow>
+          <cylinderGeometry args={[0.34, 0.25, 0.65, 18]} />
+          <meshStandardMaterial color="#c6a16d" roughness={0.82} />
+        </mesh>
+        {[[-0.2, 0.28, 0], [0.2, 0.5, 0.05], [0, 0.82, -0.08], [-0.12, 1.05, 0.05]].map(
+          ([x, y, z], index) => (
+            <mesh key={index} position={[x, y, z]} rotation={[0, 0, x * 1.5]} castShadow>
+              <sphereGeometry args={[0.28, 12, 8]} />
+              <meshStandardMaterial color={index % 2 ? "#365c43" : "#477451"} roughness={0.9} />
+            </mesh>
+          ),
+        )}
+      </group>
+      {[0, 0.13, 0.26].map((y, index) => (
+        <mesh key={y} position={[1.65, -1.82 + y, -4.61]} castShadow>
+          <boxGeometry args={[0.72 - index * 0.05, 0.1, 0.34]} />
+          <meshStandardMaterial color={["#123f68", "#d2aa55", "#8c3c3c"][index]} roughness={0.8} />
+        </mesh>
       ))}
 
       {/* Low, uncluttered seminar-room furniture */}

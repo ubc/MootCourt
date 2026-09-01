@@ -79,7 +79,7 @@
 
 import React from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { Html } from "@react-three/drei";
+import { ContactShadows, Html } from "@react-three/drei";
 import LandingPageJudgeAvatar from "../avatars/LandingPageJudgeAvatar";
 import LandingPageMenu from "../ui/LandingPageMenu";
 import UniversityRoom from "./UniversityRoom";
@@ -117,6 +117,7 @@ export default function LandingPage({
   return (
     <Canvas
       camera={{ position: cameraPosition, fov: cameraFov }}
+      shadows
       // style={{
       //   backgroundImage: `url("textures/courtroom.png")`, // Replace with your background image path
       //   backgroundSize: 'cover',
@@ -143,9 +144,9 @@ export default function LandingPage({
         gl.toneMappingExposure = 1.4;
       }}
     >
-      <ambientLight intensity={0.4} />
+      <ambientLight intensity={0.22} color="#9fb3cf" />
       <rectAreaLight
-        intensity={0.5}
+        intensity={0.28}
         position={[0, 0, 10]}
         width={30}
         height={20}
@@ -193,41 +194,49 @@ export default function LandingPage({
     decay={8} 
 /> */}
 
-      <spotLight //soft daylight from the university room windows
-        position={[-9, 0, 2]} // Adjust the position of the light
-        angle={Math.PI / 7}
-        penumbra={0.5} // Smoothness of the spotlight edge
-        intensity={9} // Adjust the intensity of the light (default is 1)
-        color={0xebd8b9} // Adjust the color of the light
-        distance={25} // Maximum distance the light will shine
+      <spotLight //cool moonlight through the windows
+        position={[-9, 2, 1]}
+        angle={Math.PI / 6}
+        penumbra={0.8}
+        intensity={3.2}
+        color="#8faed2"
+        distance={25}
       />
 
-      <pointLight //soft daylight fill
-        position={[0, 0, 6]} // Adjust the position of the point light
-        intensity={40} // Adjust the intensity of the light
-        color={0xebd8b9} // Set the light color using the 0xRRGGBB format
-        distance={9}
-        decay={8}
+      <pointLight //warm room fill
+        position={[-0.5, 2.8, 2]}
+        intensity={18}
+        color="#ffd7a3"
+        distance={12}
+        decay={2}
       />
 
-      <pointLight //window source light 1
-        position={[-11, 1.5, -3]} // Adjust the position of the point light
-        intensity={20} // Adjust the intensity of the light
-        color={0xebd8b9} // Set the light color using the 0xRRGGBB format
-        distance={10}
-        decay={8}
+      <pointLight //window edge light
+        position={[-7, 1.5, -2]}
+        intensity={8}
+        color="#7397c0"
+        distance={12}
+        decay={2}
       />
-      <pointLight //window source light 2
-        position={[-11, 1.5, -4.5]} // Adjust the position of the point light
-        intensity={20} // Adjust the intensity of the light
-        color={0xebd8b9} // Set the light color using the 0xRRGGBB format
-        distance={18}
-        decay={8}
+      <pointLight //warm wall-sign accent
+        position={[0, 1.8, -3.8]}
+        intensity={12}
+        color="#ffc987"
+        distance={7}
+        decay={2}
       />
 
       <UniversityRoom />
 
       <ResponsiveLandingAvatar />
+      <ContactShadows
+        position={[-1.5, -2.98, 2.3]}
+        opacity={0.48}
+        scale={4.5}
+        blur={2.4}
+        far={3.5}
+        color="#18202b"
+      />
 
       <Html fullscreen>
         <LandingPageMenu
