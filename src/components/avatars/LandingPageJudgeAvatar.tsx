@@ -20,7 +20,7 @@ function LandingPageJudgeAvatar({animated = true, listOfUtterances}) {
             appPaused={false}
             position={[-1.5, -3, 2.5]}
             rotation={[0, Math.PI/5, 0]}
-            modelUrl={'models/judge_avatar/judge_landing_page.glb'}
+            modelUrl={'models/judge_avatar/judge_landing_page_thumbs_up.glb'}
             animated={animated}
             animationPause={true} ></Avatar_NPC>
     </Suspense>)

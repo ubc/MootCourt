@@ -1,7 +1,6 @@
 // import * as THREE from 'three'
 // import React, {useRef, useState } from 'react'
 // import { Canvas, useFrame, ThreeElements } from '@react-three/fiber'
-import Model from "../general/Model.js";
 // import {Html, PerspectiveCamera, useTexture} from "@react-three/drei"
 // import LandingPageJudgeAvatar from '../avatars/LandingPageJudgeAvatar'
 // import LandingPageMenu from '../ui/LandingPageMenu'
@@ -78,11 +77,12 @@ import Model from "../general/Model.js";
 //     );
 // }
 
-import React, { useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { Html, PerspectiveCamera, useTexture } from "@react-three/drei";
+import React from "react";
+import { Canvas, useThree } from "@react-three/fiber";
+import { Html } from "@react-three/drei";
 import LandingPageJudgeAvatar from "../avatars/LandingPageJudgeAvatar";
 import LandingPageMenu from "../ui/LandingPageMenu";
+import UniversityRoom from "./UniversityRoom";
 import { Vector3 } from "three";
 import * as THREE from "three";
 
@@ -94,6 +94,17 @@ const cameraFov = 75;
 const targetObjectback = new THREE.Object3D();
 // Set the position of the targetObject
 targetObjectback.position.set(0, 0, -8);
+
+function ResponsiveLandingAvatar() {
+  const width = useThree((state) => state.size.width);
+  const narrowScreenOffset = width < 600 ? 1.05 : 0;
+
+  return (
+    <group position={[narrowScreenOffset, 0, 0]}>
+      <LandingPageJudgeAvatar listOfUtterances={lou} />
+    </group>
+  );
+}
 
 export default function LandingPage({
   setPaused,
@@ -182,7 +193,7 @@ export default function LandingPage({
     decay={8} 
 /> */}
 
-      <spotLight //window sunlgiht courtroom
+      <spotLight //soft daylight from the university room windows
         position={[-9, 0, 2]} // Adjust the position of the light
         angle={Math.PI / 7}
         penumbra={0.5} // Smoothness of the spotlight edge
@@ -191,7 +202,7 @@ export default function LandingPage({
         distance={25} // Maximum distance the light will shine
       />
 
-      <pointLight //window source light courtroom
+      <pointLight //soft daylight fill
         position={[0, 0, 6]} // Adjust the position of the point light
         intensity={40} // Adjust the intensity of the light
         color={0xebd8b9} // Set the light color using the 0xRRGGBB format
@@ -199,14 +210,14 @@ export default function LandingPage({
         decay={8}
       />
 
-      <pointLight //window source light 1 courtroom
+      <pointLight //window source light 1
         position={[-11, 1.5, -3]} // Adjust the position of the point light
         intensity={20} // Adjust the intensity of the light
         color={0xebd8b9} // Set the light color using the 0xRRGGBB format
         distance={10}
         decay={8}
       />
-      <pointLight //window source light 2 courtroom
+      <pointLight //window source light 2
         position={[-11, 1.5, -4.5]} // Adjust the position of the point light
         intensity={20} // Adjust the intensity of the light
         color={0xebd8b9} // Set the light color using the 0xRRGGBB format
@@ -214,26 +225,9 @@ export default function LandingPage({
         decay={8}
       />
 
-      <Model
-        modelUrl="./models/courtroom_walls.glb"
-        pos={[0, -3, 3.5]}
-        rot={[0, 0, 0]}
-        sca={[0.06, 0.06, 0.06]}
-      />
-      <Model
-        modelUrl="./models/courtroom_tables_updated_landing.glb"
-        pos={[0, -3.25, 4.5]}
-        rot={[0, 0, 0]}
-        sca={[0.055, 0.055, 0.055]}
-      />
-      <Model
-        modelUrl="./models/courtroom_props_updated.glb"
-        pos={[0, -3, 3]}
-        rot={[0, 0, 0]}
-        sca={[0.06, 0.06, 0.06]}
-      />
+      <UniversityRoom />
 
-      <LandingPageJudgeAvatar listOfUtterances={lou} />
+      <ResponsiveLandingAvatar />
 
       <Html fullscreen>
         <LandingPageMenu
