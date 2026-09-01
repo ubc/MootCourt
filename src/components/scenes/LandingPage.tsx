@@ -77,8 +77,8 @@
 //     );
 // }
 
-import React from "react";
-import { Canvas, useThree } from "@react-three/fiber";
+import React, { useMemo, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { ContactShadows, Html } from "@react-three/drei";
 import LandingPageJudgeAvatar from "../avatars/LandingPageJudgeAvatar";
 import LandingPageMenu from "../ui/LandingPageMenu";
@@ -91,17 +91,108 @@ const lou = [];
 const cameraPosition = new Vector3(0, 0, 5);
 const cameraFov = 75;
 
-const targetObjectback = new THREE.Object3D();
-// Set the position of the targetObject
-targetObjectback.position.set(0, 0, -8);
+// The avatar stands here inside ResponsiveLandingAvatar (see
+// LandingPageJudgeAvatar), so her key light, rim light and contact shadow all
+// live in the same group and stay attached when the group shifts on narrow
+// screens.
+const avatarLocalPosition: [number, number, number] = [-1.5, -3, 2.5];
+
+/**
+ * The judge GLB ships without castShadow set on its meshes, and it streams in
+ * through Suspense, so the flag has to be applied once the meshes actually
+ * exist. Without this she takes light but drops no shadow, which is most of
+ * why she read as pasted on top of the room.
+ */
+function useCastShadows() {
+  const group = useRef<THREE.Group>(null);
+  const done = useRef(false);
+
+  useFrame(() => {
+    if (done.current || !group.current) return;
+    let meshes = 0;
+    group.current.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!(mesh as any).isMesh && !(mesh as any).isSkinnedMesh) return;
+      meshes += 1;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+    });
+    if (meshes > 0) done.current = true;
+  });
+
+  return group;
+}
 
 function ResponsiveLandingAvatar() {
   const width = useThree((state) => state.size.width);
   const narrowScreenOffset = width < 600 ? 1.05 : 0;
+  const avatarGroup = useCastShadows();
+
+  const [ax, , az] = avatarLocalPosition;
+  // Real Object3Ds rather than refs: a spotLight reads target on the first
+  // render, and a ref is still null at that point.
+  const keyTarget = useMemo(() => {
+    const object = new THREE.Object3D();
+    object.position.set(ax, -1.5, az);
+    return object;
+  }, [ax, az]);
+  const rimTarget = useMemo(() => {
+    const object = new THREE.Object3D();
+    object.position.set(ax, -1.2, az);
+    return object;
+  }, [ax, az]);
 
   return (
     <group position={[narrowScreenOffset, 0, 0]}>
-      <LandingPageJudgeAvatar listOfUtterances={lou} />
+      <group ref={avatarGroup}>
+        <LandingPageJudgeAvatar listOfUtterances={lou} />
+      </group>
+
+      {/* Soft contact shadow sits just above the rug — the previous pass put it
+          below the rug plane, so it was never visible. */}
+      <ContactShadows
+        position={[ax, -2.965, az]}
+        opacity={0.62}
+        scale={5.2}
+        blur={2.6}
+        far={4}
+        resolution={1024}
+        color="#050a12"
+      />
+
+      <primitive object={keyTarget} />
+      <primitive object={rimTarget} />
+
+      <spotLight // warm key, consistent with the ceiling fixtures
+        position={[ax + 3.1, 2.5, az + 2.9]}
+        target={keyTarget}
+        angle={Math.PI / 7}
+        penumbra={0.92}
+        intensity={2.4}
+        color="#ffd7a6"
+        distance={16}
+        decay={1.6}
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0012}
+      />
+      <spotLight // cool rim from the window wall, separates her from the room
+        position={[ax - 5, 2.4, az - 4.2]}
+        target={rimTarget}
+        angle={Math.PI / 6}
+        penumbra={0.9}
+        intensity={2.8}
+        color="#7ea8d8"
+        distance={18}
+        decay={1.5}
+      />
+      <pointLight // low bounce off the rug so her legs do not sink into black
+        position={[ax + 0.4, -2.2, az + 1.4]}
+        intensity={1.1}
+        color="#4d6b8f"
+        distance={5}
+        decay={2}
+      />
     </group>
   );
 }
@@ -118,12 +209,6 @@ export default function LandingPage({
     <Canvas
       camera={{ position: cameraPosition, fov: cameraFov }}
       shadows
-      // style={{
-      //   backgroundImage: `url("textures/courtroom.png")`, // Replace with your background image path
-      //   backgroundSize: 'cover',
-      //   backgroundPosition: 'center',
-      //   width: '100%', // Make sure the canvas takes the full width of its container
-      //   height: '100%', // Make sure the canvas takes the full height of its container
       onCreated={({ gl }) => {
         const glAny = gl as any;
         const THREEAny = THREE as any;
@@ -140,103 +225,48 @@ export default function LandingPage({
           glAny.outputEncoding = THREEAny.sRGBEncoding;
         }
 
-        gl.toneMapping = THREE.ReinhardToneMapping;
-        gl.toneMappingExposure = 1.4;
+        // ACES rolls the warm fixture highlights off instead of flattening them
+        // the way Reinhard did, which is what made the old pass look washed out.
+        gl.toneMapping = THREE.ACESFilmicToneMapping;
+        gl.toneMappingExposure = 1.15;
+        gl.shadowMap.type = THREE.PCFSoftShadowMap;
       }}
     >
-      <ambientLight intensity={0.22} color="#9fb3cf" />
-      <rectAreaLight
-        intensity={0.28}
-        position={[0, 0, 10]}
-        width={30}
-        height={20}
-        color="white"
+      {/* Dark ground and depth haze: the room falls away behind the avatar
+          instead of ending in a flat white void. */}
+      <color attach="background" args={["#080e19"]} />
+      <fog attach="fog" args={["#0b1220", 6.5, 24]} />
+
+      {/* Night ambient only — everything else is a practical fixture. */}
+      <ambientLight intensity={0.09} color="#5f7ba3" />
+      <hemisphereLight
+        intensity={0.34}
+        color="#33506f"
+        groundColor="#1a1512"
+        position={[0, 5, 0]}
       />
 
-      <primitive object={targetObjectback} />
-      <spotLight //focus light towards the judge
-        position={[0, 0.5, -7.5]} // Adjust the position of the light
-        angle={Math.PI / 2}
-        penumbra={1} // Smoothness of the spotlight edge
-        intensity={3} // Adjust the intensity of the light (default is 1)
-        color={0xebd8b9} // Adjust the color of the light
-        distance={8} // Maximum distance the light will shine
-        target={targetObjectback}
+      {/* Moonlight raking in through the window wall. */}
+      <spotLight
+        position={[-9.5, 3.4, 0.5]}
+        angle={Math.PI / 5}
+        penumbra={0.9}
+        intensity={2.2}
+        color="#7d9fce"
+        distance={26}
+        decay={1.4}
       />
-      {/* <spotLight //window sunlgiht classroom 
-    position={[-9, 0, 2]} // Adjust the position of the light
-    angle={Math.PI / 7}
-    penumbra={0.5} // Smoothness of the spotlight edge
-    intensity={9} // Adjust the intensity of the light (default is 1)
-    color={0xebd8b9} // Adjust the color of the light
-    distance={25} // Maximum distance the light will shine
-/>
-<pointLight //window source light classroom
-    position={[0, 0, 6]} // Adjust the position of the point light
-    intensity={40} // Adjust the intensity of the light
-    color={0xebd8b9} // Set the light color using the 0xRRGGBB format
-    distance={9}
-    decay={8} 
-/>
-
-<pointLight //window source light 1 classroom
-    position={[-9, 0.9, -3.2]} // Adjust the position of the point light
-    intensity={50} // Adjust the intensity of the light
-    color={0xebd8b9} // Set the light color using the 0xRRGGBB format
-    distance={5}
-    decay={8} 
-/>
-<pointLight //window source light 2 classroom
-    position={[-9, 0.9, -5]} // Adjust the position of the point light
-    intensity={50} // Adjust the intensity of the light
-    color={0xebd8b9} // Set the light color using the 0xRRGGBB format
-    distance={6}
-    decay={8} 
-/> */}
-
-      <spotLight //cool moonlight through the windows
-        position={[-9, 2, 1]}
-        angle={Math.PI / 6}
-        penumbra={0.8}
-        intensity={3.2}
-        color="#8faed2"
-        distance={25}
-      />
-
-      <pointLight //warm room fill
-        position={[-0.5, 2.8, 2]}
-        intensity={18}
-        color="#ffd7a3"
-        distance={12}
-        decay={2}
-      />
-
-      <pointLight //window edge light
-        position={[-7, 1.5, -2]}
-        intensity={8}
-        color="#7397c0"
-        distance={12}
-        decay={2}
-      />
-      <pointLight //warm wall-sign accent
-        position={[0, 1.8, -3.8]}
-        intensity={12}
-        color="#ffc987"
-        distance={7}
+      <pointLight // cool spill along the glazing itself
+        position={[-6.6, 0.9, -2.4]}
+        intensity={1.6}
+        color="#5f86b4"
+        distance={9}
         decay={2}
       />
 
       <UniversityRoom />
 
       <ResponsiveLandingAvatar />
-      <ContactShadows
-        position={[-1.5, -2.98, 2.3]}
-        opacity={0.48}
-        scale={4.5}
-        blur={2.4}
-        far={3.5}
-        color="#18202b"
-      />
 
       <Html fullscreen>
         <LandingPageMenu

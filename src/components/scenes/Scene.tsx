@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Canvas, useFrame, ThreeElements } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, ThreeElements } from "@react-three/fiber";
 import Model from "../general/Model.js";
 import GlobalTimer from "../general/GlobalTimer";
 import PauseButton from "../buttons/PauseButton";
@@ -23,6 +23,7 @@ import { Vector3 } from "three"; // Import Vector3 from three.js
 import * as THREE from "three";
 import AudioComponent from "../avatar_components/AudioComponent";
 import { useMootCourtStore } from "../MootCourtState";
+import CourtroomNight from "./CourtroomNight";
 
 const cameraPosition = new Vector3(0, 0, 2.2);
 const cameraFov = 42;
@@ -39,6 +40,16 @@ const onRenderCallback = (
   //console.log(`[${id}] ${phase} took ${actualDuration}ms`);
 };
 
+
+// TEMP DEV HELPER — removed before the change lands.
+function __SceneDebug() {
+  const { scene, camera, gl } = useThree();
+  (window as any).__scene = scene;
+  (window as any).__camera = camera;
+  (window as any).__gl = gl;
+  (window as any).__THREE = THREE;
+  return null;
+}
 
 export default function GeneralScene({
   setPaused,
@@ -76,14 +87,6 @@ export default function GeneralScene({
     React.ReactElement[]
   >([]);
 
-  const targetObjectback = new THREE.Object3D();
-  // Set the position of the targetObject
-  targetObjectback.position.set(0, 0, -8);
-
-  const targetObjectSun = new THREE.Object3D();
-  // Set the position of the targetObject
-  targetObjectSun.position.set(10, 0, -5);
-
   // const [transcript, setTranscript] = useState('');
   // const setSubtitles = useMootCourtStore((state) => state.setSubtitles)
   // const handleTranscriptChange = (newTranscript) => {
@@ -120,6 +123,7 @@ export default function GeneralScene({
           position: cameraPosition,
           fov: cameraFov,
         }}
+        shadows
         onCreated={({ gl }) => {
           const glAny = gl as any;
           const THREEAny = THREE as any;
@@ -137,9 +141,10 @@ export default function GeneralScene({
             glAny.outputEncoding = THREEAny.sRGBEncoding;
           }
 
-          // tonemapping
-          gl.toneMapping = THREE.ReinhardToneMapping;
-          gl.toneMappingExposure = 1.4;
+          // ACES keeps the warm bench lamps from clipping the way Reinhard did.
+          gl.toneMapping = THREE.ACESFilmicToneMapping;
+          gl.toneMappingExposure = 1.15;
+          gl.shadowMap.type = THREE.PCFSoftShadowMap;
         }}
 
         // style={{
@@ -150,51 +155,13 @@ export default function GeneralScene({
         //   height: '100%', // Make sure the canvas takes the full height of its container
         // }}
       >
-        <ambientLight intensity={0.4} />
+        <__SceneDebug />
 
-        <rectAreaLight
-          intensity={0.5}
-          position={[0, 0, 10]}
-          width={30}
-          height={20}
-          color="white"
-        />
+        {/* Dark ground and depth haze so the gallery falls away behind the bench. */}
+        <color attach="background" args={["#080e19"]} />
+        <fog attach="fog" args={["#0b1220", 4.5, 19]} />
 
-        <pointLight //playerstation
-          position={[0, 2, 4]} // Adjust the position of the point light
-          intensity={40} // Adjust the intensity of the light
-          color="white" // Set the light color using the 0xRRGGBB format
-          distance={6}
-          decay={1.5}
-        />
-        <primitive object={targetObjectback} />
-        <spotLight //focus light towards the judge
-          position={[0, 0, -7.5]} // Adjust the position of the light
-          angle={Math.PI / 3}
-          penumbra={1} // Smoothness of the spotlight edge
-          intensity={2} // Adjust the intensity of the light (default is 1)
-          color={0xebd8b9} // Adjust the color of the light
-          distance={7} // Maximum distance the light will shine
-          target={targetObjectback}
-        />
-
-        <primitive object={targetObjectSun} />
-        <spotLight //window sunlgiht
-          position={[-9, 1, 1]} // Adjust the position of the light
-          angle={Math.PI / 7}
-          penumbra={0.5} // Smoothness of the spotlight edge
-          intensity={5} // Adjust the intensity of the light (default is 1)
-          color={0xebd8b9} // Adjust the color of the light
-          distance={25} // Maximum distance the light will shine
-          target={targetObjectSun}
-        />
-        <pointLight //window source light
-          position={[-9, 0.8, -4.5]} // Adjust the position of the point light
-          intensity={70} // Adjust the intensity of the light
-          color={0xebd8b9} // Set the light color using the 0xRRGGBB format
-          distance={10}
-          decay={6}
-        />
+        <CourtroomNight />
 
         {/* <JudgeTimedSpeech
                 config={appConfig}
