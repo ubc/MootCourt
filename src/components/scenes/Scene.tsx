@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Canvas, useFrame, useThree, ThreeElements } from "@react-three/fiber";
+import { Canvas, useFrame, ThreeElements } from "@react-three/fiber";
 import Model from "../general/Model.js";
 import GlobalTimer from "../general/GlobalTimer";
 import PauseButton from "../buttons/PauseButton";
@@ -40,16 +40,6 @@ const onRenderCallback = (
   //console.log(`[${id}] ${phase} took ${actualDuration}ms`);
 };
 
-
-// TEMP DEV HELPER — removed before the change lands.
-function __SceneDebug() {
-  const { scene, camera, gl } = useThree();
-  (window as any).__scene = scene;
-  (window as any).__camera = camera;
-  (window as any).__gl = gl;
-  (window as any).__THREE = THREE;
-  return null;
-}
 
 export default function GeneralScene({
   setPaused,
@@ -143,7 +133,7 @@ export default function GeneralScene({
 
           // ACES keeps the warm bench lamps from clipping the way Reinhard did.
           gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.15;
+          gl.toneMappingExposure = 1.3;
           gl.shadowMap.type = THREE.PCFSoftShadowMap;
         }}
 
@@ -155,11 +145,9 @@ export default function GeneralScene({
         //   height: '100%', // Make sure the canvas takes the full height of its container
         // }}
       >
-        <__SceneDebug />
-
         {/* Dark ground and depth haze so the gallery falls away behind the bench. */}
         <color attach="background" args={["#080e19"]} />
-        <fog attach="fog" args={["#0b1220", 4.5, 19]} />
+        <fog attach="fog" args={["#142642", 6, 34]} />
 
         <CourtroomNight />
 
