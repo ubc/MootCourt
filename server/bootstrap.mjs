@@ -2,6 +2,7 @@ import { validateConfig } from './config.mjs';
 import { createRelay } from './relay.mjs';
 import { createApp } from './app.mjs';
 import databaseService from './db.mjs';
+import { createMaterialsService } from './rag/materials.mjs';
 
 /**
  * Shared startup for both entry points: `npm run server` (server/index.mjs) and
@@ -40,14 +41,37 @@ export async function startServer(config, { onFatal } = {}) {
     console.warn(`MongoDB unavailable (${error.message}). Continuing without saved sessions.`);
   }
 
-  const app = await createApp(config, databaseService);
-  const relay = createRelay(config, { requestListener: app });
+  // Uploads need somewhere to put both halves of a document: the extracted text
+  // in MongoDB and the vectors in Qdrant. With either missing the feature is
+  // off rather than half-working, and the frontend hides the upload step.
+  let materials = null;
+  let stopRetentionSweep = () => {};
+  if (config.materials.enabled && databaseService.getDb()) {
+    materials = createMaterialsService(config, databaseService);
+    const health = await materials.store.healthCheck();
+    if (health.reachable) {
+      console.log(`Materials enabled — Qdrant ${config.materials.qdrant.url}, collection ${health.collection}`);
+      stopRetentionSweep = materials.startRetentionSweep();
+    } else {
+      // Not fatal: the courtroom works without materials, and a student who
+      // uploads nothing never notices. Uploading would fail loudly anyway.
+      console.warn(`Qdrant unreachable at ${config.materials.qdrant.url} (${health.error}). Uploads are disabled.`);
+      materials = null;
+    }
+  } else if (config.materials.enabled) {
+    console.warn('QDRANT_URL is set but MongoDB is not connected. Uploads are disabled.');
+  }
+
+  const app = await createApp(config, databaseService, materials);
+  const relay = createRelay(config, { requestListener: app, materials });
   await relay.listen();
 
   return {
     relay,
     databaseService,
+    materials,
     close: async () => {
+      stopRetentionSweep();
       await relay.close();
       await databaseService.disconnect();
     },

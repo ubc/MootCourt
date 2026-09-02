@@ -57,6 +57,33 @@ Full setup, the local fake-CWL registration, the stored document shapes, and the
 staging/production variables are in
 [docs/cwl-login.md](docs/cwl-login.md).
 
+## Practice materials
+
+Students can upload a factum, thesis chapter or authorities before entering the
+courtroom, and the judge searches them mid-argument to challenge what the
+student actually wrote. PDF and `.docx`. Charts, exhibits and screenshots inside
+a file are read into text by a vision model, so an image-heavy brief is
+searchable rather than invisible.
+
+Off unless configured, like the database and login above. Moot Court uses the
+shared [`ubc/tlef-qdrant`](https://github.com/ubc/tlef-qdrant) instance on
+`localhost:6333` — the same one BiocBot and GRASP use — and takes its own
+collection on it. Start that project if it is not already running, then set
+`QDRANT_URL` in `.env.server.local` (see `.env.server.example`). Uploads also
+need `MONGODB_URI`: the extracted text goes to MongoDB and the vectors to
+Qdrant, and with either missing the feature stays off rather than half-working.
+
+The uploaded file itself is never stored — only the text read out of it, and
+only for `MATERIALS_RETENTION_DAYS`, after which the text and its vectors are
+deleted together.
+
+`MATERIALS_STUB=1` develops the whole pipeline with no OpenAI account and no
+network, using deterministic fake vectors in a separate collection. Never set it
+in staging or production.
+
+The ingestion pipeline, the image handling, the `briefId` scoping and the
+realtime search tool are described in [docs/materials.md](docs/materials.md).
+
 ### Behavior and configuration
 
 - Courtroom UI, hold/release controls, queued audio pause/resume, assessment calculations/data shape, and existing browser storage are retained. The migration does not fix or redesign the existing assessment metrics.
@@ -71,7 +98,7 @@ staging/production variables are in
 - **OpenAI connection rejected:** verify the key, API billing, and access to the configured models. A ChatGPT subscription alone is not an API key.
 - **Not connected:** check that `npm run dev` is running and use `127.0.0.1` or `localhost`, not a LAN hostname.
 - **No sound:** check microphone/speaker permissions and the selected output device. An audio playback failure ends the session instead of leaving input locked.
-- `npm run test:server`: local WebSocket integration tests with a simulated OpenAI upstream; no key or paid requests required.
+- `npm run test:server`: local WebSocket integration tests with a simulated OpenAI upstream, plus the materials pipeline and upload routes; no key or paid requests required.
 - `npm test -- --watchAll=false --runInBand --runTestsByPath src/components/server/ServerUtility.test.ts src/components/avatar_components/AudioComponent.test.tsx`: transport and hold/release regressions.
 - `npm run build`: create the frontend production build (does not start or deploy the Node service).
 

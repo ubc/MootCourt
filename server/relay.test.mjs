@@ -43,6 +43,7 @@ async function fixture(t, options = {}) {
   const relay = createRelay({ ...config, ...options.config }, {
     setupTimeoutMs: options.setupTimeoutMs,
     turnTimeoutMs: options.turnTimeoutMs,
+    materials: options.materials,
     connectUpstream: () => {
       upstreamConnections++;
       return new WebSocket(`ws://127.0.0.1:${upstream.address().port}`);
@@ -54,8 +55,8 @@ async function fixture(t, options = {}) {
     for (const client of upstream.clients) client.terminate();
     await new Promise(resolve => upstream.close(resolve));
   });
-  function client(headers = {}) {
-    const socket = new WebSocket(`ws://127.0.0.1:${address.port}/realtime`, { headers: { Origin: origin, ...headers } });
+  function client(headers = {}, path = '/realtime') {
+    const socket = new WebSocket(`ws://127.0.0.1:${address.port}${path}`, { headers: { Origin: origin, ...headers } });
     const messages = [];
     socket.on('message', (data, binary) => messages.push(binary ? Buffer.from(data) : JSON.parse(data.toString())));
     socket.on('error', () => {});
@@ -171,4 +172,171 @@ test('a stalled transcription times out and closes the upstream conversation', a
   await waitFor(() => c.messages.some(m => m.type === 'error'));
   assert.match(c.messages.find(m => m.type === 'error').message, /too long/);
   await waitFor(() => f.sessions[0].socket.readyState === WebSocket.CLOSED);
+});
+
+// --- search_materials ------------------------------------------------------
+//
+// A tool call completes a response without the judge having said anything, so
+// these cover the failure that would be invisible otherwise: the browser being
+// told the turn is over while the judge is still mid-thought.
+
+/** An upstream that makes one search_materials call, then speaks. */
+function toolCallingUpstream(queries) {
+  let calls = 0;
+  return (socket, event, session) => {
+    if (event.type === 'session.update') {
+      session.tools = event.session.tools;
+      socket.send(JSON.stringify({ type: 'session.updated' }));
+    }
+    if (event.type === 'input_audio_buffer.commit') {
+      socket.send(JSON.stringify({ type: 'input_audio_buffer.committed', item_id: session.id }));
+      socket.send(JSON.stringify({ type: 'conversation.item.input_audio_transcription.completed', item_id: session.id, transcript: 'My submission is X.' }));
+    }
+    if (event.type === 'conversation.item.create') session.toolOutputs = [...(session.toolOutputs || []), event.item];
+    if (event.type === 'response.create') {
+      if (calls++ === 0) {
+        socket.send(JSON.stringify({
+          type: 'response.output_item.done',
+          item: { type: 'function_call', call_id: 'call_1', name: 'search_materials', arguments: JSON.stringify({ query: queries[0] }) },
+        }));
+        socket.send(JSON.stringify({ type: 'response.done', response: { status: 'completed' } }));
+        return;
+      }
+      socket.send(JSON.stringify({ type: 'response.output_audio.delta', delta: Buffer.alloc(8000, 1).toString('base64') }));
+      socket.send(JSON.stringify({ type: 'response.output_audio_transcript.done', transcript: 'You wrote otherwise at page four.' }));
+      socket.send(JSON.stringify({ type: 'response.done', response: { status: 'completed' } }));
+    }
+  };
+}
+
+test('a brief on the socket adds the search tool; no brief leaves the judge without one', async t => {
+  const materials = { search: async () => ({ passages: [] }) };
+  const f = await fixture(t, { materials, handle: toolCallingUpstream(['unused']) });
+
+  const withBrief = f.client({}, '/realtime?brief=brief_abc');
+  await waitFor(() => f.sessions.length === 1 && f.sessions[0].tools !== undefined);
+  assert.deepEqual(f.sessions[0].tools.map(tool => tool.name), ['search_materials']);
+
+  const without = f.client();
+  await waitFor(() => f.sessions.length === 2 && f.sessions[1].events.some(e => e.type === 'session.update'));
+  assert.equal(f.sessions[1].tools, undefined);
+
+  withBrief.socket.close();
+  without.socket.close();
+});
+
+test('a tool call is answered and the turn stays open until the judge actually speaks', async t => {
+  const searched = [];
+  const materials = {
+    search: async (briefId, query) => {
+      searched.push({ briefId, query });
+      return { passages: [{ filename: 'factum.pdf', text: 'The appellant conceded the point.', score: 0.91 }] };
+    },
+  };
+  const f = await fixture(t, { materials, handle: toolCallingUpstream(['what did they concede']) });
+  const c = f.client({}, '/realtime?brief=brief_xyz');
+  await waitFor(() => c.messages.some(m => m.type === 'ready'));
+
+  c.socket.send(pcmToWav(Buffer.alloc(48000, 1)).subarray(44));
+  await waitFor(() => c.messages.some(m => m.type === 'response.done'));
+
+  // The search ran, scoped to this socket's brief and nothing else.
+  assert.deepEqual(searched, [{ briefId: 'brief_xyz', query: 'what did they concede' }]);
+
+  // The output went back upstream under the call id it was asked for.
+  const output = f.sessions[0].toolOutputs.at(-1);
+  assert.equal(output.type, 'function_call_output');
+  assert.equal(output.call_id, 'call_1');
+  assert.match(JSON.parse(output.output).passages[0].text, /conceded/);
+
+  // Exactly one turn from the browser's side: the tool leg is invisible to it,
+  // and the client was told the turn ended only after audio arrived.
+  assert.equal(c.messages.filter(m => m.type === 'response.done').length, 1);
+  assert.ok(c.messages.some(m => m.type === 'searching'), 'client is told a search is running');
+  assert.ok(c.messages.some(m => Buffer.isBuffer(m)), 'the judge still spoke');
+  const doneAt = c.messages.findIndex(m => m.type === 'response.done');
+  assert.ok(c.messages.slice(0, doneAt).some(m => Buffer.isBuffer(m)), 'audio arrived before the turn ended');
+});
+
+test('a search failure still produces a reply rather than ending the moot', async t => {
+  const materials = { search: async () => { throw new Error('qdrant is down'); } };
+  const f = await fixture(t, { materials, handle: toolCallingUpstream(['anything']) });
+  const c = f.client({}, '/realtime?brief=brief_down');
+  await waitFor(() => c.messages.some(m => m.type === 'ready'));
+
+  c.socket.send(pcmToWav(Buffer.alloc(48000, 1)).subarray(44));
+  await waitFor(() => c.messages.some(m => m.type === 'response.done' || m.type === 'error'));
+  assert.ok(c.messages.some(m => m.type === 'response.done'), 'the turn completed');
+  assert.ok(!c.messages.some(m => m.type === 'error'), 'the session was not failed');
+});
+
+test('the search loop is bounded: the tool is withheld, and a model that ignores that has its turn ended', async t => {
+  const materials = { search: async () => ({ passages: [] }) };
+  const f = await fixture(t, {
+    materials,
+    // Deliberately adversarial: this upstream calls the tool on every request,
+    // including the one where tool_choice is 'none'. A real model cannot, but
+    // the relay must terminate regardless of what upstream does.
+    handle: (socket, event, session) => {
+      if (event.type === 'session.update') socket.send(JSON.stringify({ type: 'session.updated' }));
+      if (event.type === 'input_audio_buffer.commit') {
+        socket.send(JSON.stringify({ type: 'input_audio_buffer.committed', item_id: session.id }));
+        socket.send(JSON.stringify({ type: 'conversation.item.input_audio_transcription.completed', item_id: session.id, transcript: 'X.' }));
+      }
+      if (event.type === 'conversation.item.create') session.toolOutputs = [...(session.toolOutputs || []), event.item];
+      if (event.type === 'response.create') {
+        session.requests = [...(session.requests || []), event.response?.tool_choice ?? 'auto'];
+        socket.send(JSON.stringify({
+          type: 'response.output_item.done',
+          item: { type: 'function_call', call_id: `call_${session.requests.length}`, name: 'search_materials', arguments: '{"query":"again"}' },
+        }));
+        socket.send(JSON.stringify({ type: 'response.done', response: { status: 'completed' } }));
+      }
+    },
+  });
+  const c = f.client({}, '/realtime?brief=brief_loop');
+  await waitFor(() => c.messages.some(m => m.type === 'ready'));
+
+  c.socket.send(pcmToWav(Buffer.alloc(48000, 1)).subarray(44));
+  await waitFor(() => c.messages.some(m => m.type === 'response.done'));
+
+  const session = f.sessions[0];
+  // Three searches, then the tool is taken away, then the turn ends.
+  assert.equal(session.toolOutputs.length, 3);
+  assert.deepEqual(session.requests, ['auto', 'auto', 'auto', 'none']);
+  assert.equal(session.toolOutputs.filter(item => item.type !== 'function_call_output').length, 0);
+  // The browser is released rather than left waiting on a turn that never ends.
+  assert.equal(c.messages.filter(m => m.type === 'response.done').length, 1);
+});
+
+test('malformed tool arguments search for nothing instead of failing the turn', async t => {
+  const searched = [];
+  const materials = { search: async (briefId, query) => { searched.push(query); return { passages: [] }; } };
+  let calls = 0;
+  const f = await fixture(t, {
+    materials,
+    handle: (socket, event, session) => {
+      if (event.type === 'session.update') socket.send(JSON.stringify({ type: 'session.updated' }));
+      if (event.type === 'input_audio_buffer.commit') {
+        socket.send(JSON.stringify({ type: 'input_audio_buffer.committed', item_id: session.id }));
+        socket.send(JSON.stringify({ type: 'conversation.item.input_audio_transcription.completed', item_id: session.id, transcript: 'X.' }));
+      }
+      if (event.type === 'response.create') {
+        if (calls++ === 0) {
+          socket.send(JSON.stringify({
+            type: 'response.output_item.done',
+            item: { type: 'function_call', call_id: 'call_1', name: 'search_materials', arguments: '{"query": ' },
+          }));
+        } else {
+          socket.send(JSON.stringify({ type: 'response.output_audio_transcript.done', transcript: 'Continue.' }));
+        }
+        socket.send(JSON.stringify({ type: 'response.done', response: { status: 'completed' } }));
+      }
+    },
+  });
+  const c = f.client({}, '/realtime?brief=brief_bad');
+  await waitFor(() => c.messages.some(m => m.type === 'ready'));
+  c.socket.send(pcmToWav(Buffer.alloc(48000, 1)).subarray(44));
+  await waitFor(() => c.messages.some(m => m.type === 'response.done'));
+  assert.deepEqual(searched, ['']);
 });

@@ -1,5 +1,21 @@
 export const JUDGE_INSTRUCTIONS = "Play the role of a Judge in Canada in a Judicial Interrogation System practiced in the Socratic method and the user is orally presenting at a Moot Court practice. Keep the response under 4 sentences: Find their weakest point and ask a question about that single idea to challenge, provoke thought, and deepen the student's understanding of law.";
 
+/**
+ * Appended to the judge's instructions only when the student uploaded
+ * materials. Without this the model has a search_materials tool and no reason
+ * to reach for it — realtime models rarely call a tool they were not told to
+ * prefer, and a judge that never opens the brief is the whole feature failing
+ * silently.
+ */
+export const MATERIALS_INSTRUCTIONS = [
+  'The student has filed written materials for this moot. Use the search_materials',
+  'tool to look up what they actually wrote before challenging a submission, and',
+  'again whenever they cite a fact, authority, or figure you should verify.',
+  'Ground your questions in what the search returns: quote or paraphrase their own',
+  'words back to them and press on it. If a search returns nothing relevant, ask',
+  'your question from the oral argument alone and do not invent a citation.',
+].join(' ');
+
 // Accepts SHOW_LOGIN=true / True / TRUE / 1. Anything else — including unset,
 // empty, or a typo — leaves login off, so a misconfigured deployment collects
 // no personal information rather than collecting it by accident.
@@ -32,6 +48,7 @@ export function readConfig(env = process.env) {
     origins: [`http://localhost:${appPort}`, `http://127.0.0.1:${appPort}`, publicUrl],
     mongo: readMongoConfig(env),
     auth: readAuthConfig(env, publicUrl),
+    materials: readMaterialsConfig(env, env.OPENAI_API_KEY?.trim() || ''),
   };
 }
 
@@ -46,6 +63,77 @@ function readMongoConfig(env) {
     connectTimeoutMS: Number(env.MONGODB_CONNECT_TIMEOUT_MS || 5000),
     serverSelectionTimeoutMS: Number(env.MONGODB_SERVER_SELECTION_TIMEOUT_MS || 5000),
   };
+}
+
+/**
+ * Retrieval configuration for uploaded practice materials.
+ *
+ * QDRANT_URL is the switch, matching how MONGODB_URI works above: leave it
+ * unset and the upload step never appears, no routes are mounted, and the judge
+ * is given no search tool. A laptop with no Docker still gets the courtroom.
+ */
+function readMaterialsConfig(env, apiKey) {
+  const qdrantUrl = env.QDRANT_URL?.trim() || '';
+  const stub = readFlag(env.MATERIALS_STUB);
+  const embeddingModel = env.OPENAI_EMBEDDING_MODEL?.trim() || 'text-embedding-3-small';
+
+  return {
+    // Real embeddings need the OpenAI key; stub mode deliberately does not, so
+    // the pipeline stays developable with no provider account at all.
+    enabled: Boolean(qdrantUrl) && (stub || Boolean(apiKey)),
+    stub,
+    apiKey,
+    qdrant: {
+      url: qdrantUrl,
+      apiKey: env.QDRANT_API_KEY?.trim() || '',
+      collectionBase: env.QDRANT_COLLECTION_NAME?.trim() || 'mootcourt_materials',
+    },
+    embeddingModel,
+    vectorSize: readVectorSize(env, embeddingModel),
+    // Reads charts, exhibits and screenshots inside an upload into text.
+    visionModel: env.OPENAI_VISION_MODEL?.trim() || 'gpt-5.6-luna',
+    visionReasoningEffort: env.OPENAI_VISION_REASONING_EFFORT?.trim() || 'medium',
+    chunking: {
+      size: Number(env.CHUNK_SIZE || 1000),
+      overlap: Number(env.CHUNK_OVERLAP || 200),
+      min: Number(env.CHUNK_MIN || 100),
+    },
+    upload: {
+      maxFileBytes: Number(env.MATERIALS_MAX_FILE_BYTES || 25 * 1024 * 1024),
+      maxFiles: Number(env.MATERIALS_MAX_FILES || 5),
+    },
+    search: {
+      // Small on purpose: these chunks are read aloud through a voice model, so
+      // more context buys less than it costs in latency.
+      limit: Number(env.MATERIALS_SEARCH_LIMIT || 4),
+      scoreThreshold: Number(env.MATERIALS_SCORE_THRESHOLD || 0),
+    },
+    // 0 keeps uploaded text indefinitely. Anything else is swept from MongoDB
+    // and Qdrant together by pruneExpiredBriefs.
+    retentionDays: Number(env.MATERIALS_RETENTION_DAYS || 7),
+  };
+}
+
+/**
+ * Qdrant fixes a collection's dimensionality at creation, so an embedding model
+ * whose size is not known here must be declared rather than guessed.
+ */
+const EMBEDDING_VECTOR_SIZES = Object.freeze({
+  'text-embedding-3-small': 1536,
+  'text-embedding-3-large': 3072,
+  'text-embedding-ada-002': 1536,
+});
+
+function readVectorSize(env, embeddingModel) {
+  const known = EMBEDDING_VECTOR_SIZES[embeddingModel];
+  if (known) return known;
+  const declared = Number(env.QDRANT_VECTOR_SIZE);
+  if (!Number.isInteger(declared) || declared <= 0) {
+    throw new Error(
+      `Unknown embedding model "${embeddingModel}". Set QDRANT_VECTOR_SIZE to its output dimension.`,
+    );
+  }
+  return declared;
 }
 
 function readAuthConfig(env, publicUrl) {
@@ -98,11 +186,51 @@ export function validateConfig(config) {
   return problems;
 }
 
-export function sessionConfig(config) {
+/**
+ * The realtime session the relay opens upstream.
+ *
+ * `hasMaterials` is per connection, not per deployment: two students can be
+ * arguing at once and only one of them may have filed a brief. The tool is
+ * offered only to the session that has something to search, so a judge with no
+ * materials cannot call a tool that would return nothing.
+ */
+/**
+ * The judge's one tool: a semantic lookup over this student's own filed
+ * materials, and nothing else. It takes a natural-language query rather than a
+ * document or page reference because retrieval is by meaning — the judge asks
+ * for "the standard of review argued" and gets the passage that argues it.
+ */
+export const SEARCH_MATERIALS_TOOL = Object.freeze({
+  type: 'function',
+  name: 'search_materials',
+  description:
+    "Search the written materials this student filed for this moot (their factum, thesis chapters, "
+    + 'authorities and exhibits, including text read out of images and charts). Use it to check what '
+    + 'they actually argued before challenging them, and to verify any fact or citation they assert '
+    + 'aloud. Returns the passages that best match the query, with the file they came from.',
+  parameters: {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        description:
+          'What to look for, in natural language — a legal issue, a claim the student made, or a '
+          + 'phrase they used. Full questions work better than keywords.',
+      },
+    },
+    required: ['query'],
+    additionalProperties: false,
+  },
+});
+
+export function sessionConfig(config, { hasMaterials = false } = {}) {
   return {
     type: 'realtime',
     model: config.model,
-    instructions: JUDGE_INSTRUCTIONS,
+    instructions: hasMaterials
+      ? `${JUDGE_INSTRUCTIONS} ${MATERIALS_INSTRUCTIONS}`
+      : JUDGE_INSTRUCTIONS,
+    ...(hasMaterials ? { tools: [SEARCH_MATERIALS_TOOL], tool_choice: 'auto' } : {}),
     output_modalities: ['audio'],
     // Keep answers short without applying the old text-token budget to audio tokens.
     max_output_tokens: 4096,

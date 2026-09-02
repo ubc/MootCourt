@@ -19,6 +19,7 @@ import { randomUUID } from 'node:crypto';
  *   puid:              String|null,
  *   anonymous:         Boolean,
  *   playerPosition:    String,   // 'Appellant' | 'Respondent'
+ *   briefId:           String|null, // materials filed for this run
  *   startedAt:         Date,
  *   endedAt:           Date|null,
  *   judgeElapsedTime:  Number,   // ms of judge speech
@@ -47,7 +48,7 @@ function normalizePosition(position) {
   return position === 'Respondent' ? 'Respondent' : 'Appellant';
 }
 
-export async function createSession(db, { identity, playerPosition, settings }) {
+export async function createSession(db, { identity, playerPosition, settings, briefId }) {
   const now = new Date();
   const session = {
     sessionId: `session_${randomUUID()}`,
@@ -55,6 +56,9 @@ export async function createSession(db, { identity, playerPosition, settings }) 
     puid: identity?.puid || null,
     anonymous: !identity?.userId,
     playerPosition: normalizePosition(playerPosition),
+    // The materials filed for this run, or null. Kept so a saved session can be
+    // read back alongside what the judge was actually able to search.
+    briefId: typeof briefId === 'string' && briefId.startsWith('brief_') ? briefId : null,
     startedAt: now,
     endedAt: null,
     judgeElapsedTime: 0,

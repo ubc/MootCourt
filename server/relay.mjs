@@ -3,6 +3,15 @@ import WebSocket, { WebSocketServer } from 'ws';
 import { MAX_RECORDING_BYTES, pcmToWav } from './audio.mjs';
 import { sessionConfig } from './config.mjs';
 
+/**
+ * Searches the judge may run before it has to speak. Each round costs an
+ * embedding call, a Qdrant lookup and another model response while the student
+ * is standing there waiting, and a model that searches four times has usually
+ * stopped converging. On the last round the tool is withheld from the request,
+ * which is what makes the loop terminate rather than merely discouraging it.
+ */
+const MAX_TOOL_ROUNDS = 3;
+
 function sendJSON(socket, event) {
   if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
 }
@@ -13,7 +22,7 @@ function closeSocket(socket) {
   socket.terminate();
 }
 
-export function createRelay(config, { connectUpstream, setupTimeoutMs = 15000, turnTimeoutMs = 120000, requestListener } = {}) {
+export function createRelay(config, { connectUpstream, setupTimeoutMs = 15000, turnTimeoutMs = 120000, requestListener, materials = null } = {}) {
   const connect = connectUpstream || (() => new WebSocket(
     `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(config.model)}`,
     { headers: { Authorization: `Bearer ${config.apiKey}` }, handshakeTimeout: setupTimeoutMs, maxPayload: 16 * 1024 * 1024 },
@@ -47,20 +56,38 @@ export function createRelay(config, { connectUpstream, setupTimeoutMs = 15000, t
   });
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_RECORDING_BYTES, perMessageDeflate: false });
   server.on('upgrade', (req, socket, head) => {
+    // The brief a student filed before entering the courtroom, carried on the
+    // socket URL because it has to be known before the upstream session is
+    // configured — the search tool is offered at session.update or not at all.
+    let pathname = req.url;
+    let briefId = '';
+    try {
+      const url = new URL(req.url, 'http://localhost');
+      pathname = url.pathname;
+      briefId = url.searchParams.get('brief') || '';
+    } catch { /* keep req.url, which then fails the check below */ }
+
     // Loopback binding alone does not prevent websites from accessing localhost.
-    if (!validHost(req) || req.url !== '/realtime' || !config.origins.includes(req.headers.origin)) {
+    if (!validHost(req) || pathname !== '/realtime' || !config.origins.includes(req.headers.origin)) {
       socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
       return;
     }
-    wss.handleUpgrade(req, socket, head, client => wss.emit('connection', client));
+    wss.handleUpgrade(req, socket, head, client => wss.emit('connection', client, briefId));
   });
 
-  wss.on('connection', client => {
+  wss.on('connection', (client, briefId = '') => {
+    // A judge is given the search tool only when this student actually filed
+    // something. Two students can be arguing at once and only one may have.
+    const hasMaterials = Boolean(materials && briefId);
     let upstream;
     let ready = false;
     let busy = false;
     let awaitingTranscript = false;
     let committedItem;
+    // Function calls seen during the response currently streaming, and how many
+    // times this one turn has already gone round the search loop.
+    let pendingCalls = [];
+    let toolRounds = 0;
     let chunks = [];
     let chunkBytes = 0;
     let caption = '';
@@ -76,6 +103,53 @@ export function createRelay(config, { connectUpstream, setupTimeoutMs = 15000, t
       client.close(1011, 'Session ended');
       closeSocket(upstream);
     };
+    /**
+     * Answers the judge's search_materials calls and asks for the spoken reply.
+     *
+     * The turn deliberately stays `busy` across this: from the browser's point
+     * of view one recording still produces one reply, and telling it the turn
+     * ended here would unlock the microphone while the judge is still thinking.
+     *
+     * A search never fails the turn — a dead Qdrant comes back as no passages
+     * and the moot continues.
+     *
+     * @param {boolean} withdrawTool Ask for the reply with the tool withheld,
+     *   which is what actually ends the search loop: the model cannot call it
+     *   again and has to speak.
+     */
+    const resolveToolCalls = async (calls, { withdrawTool }) => {
+      sendJSON(client, { type: 'searching' });
+      clearTimeout(turnTimer);
+      turnTimer = setTimeout(() => fail('OpenAI took too long to reply. Start a new session and try again.'), turnTimeoutMs);
+
+      for (const call of calls) {
+        // Every call must be answered — the API will not produce a reply while
+        // one is outstanding — so a failed search still sends an empty result.
+        let result = { passages: [], note: 'That tool is not available.' };
+        if (call.name === 'search_materials') {
+          let query = '';
+          try { query = JSON.parse(call.args || '{}')?.query || ''; }
+          catch { /* malformed arguments become an empty search */ }
+          try {
+            result = await materials.search(briefId, query);
+          } catch (error) {
+            console.warn(`search_materials threw for ${briefId}: ${error.message}`);
+            result = { passages: [], note: 'The materials could not be searched for this question.' };
+          }
+        }
+
+        if (failed || upstream.readyState !== WebSocket.OPEN) return;
+        sendJSON(upstream, {
+          type: 'conversation.item.create',
+          item: { type: 'function_call_output', call_id: call.callId, output: JSON.stringify(result) },
+        });
+      }
+      if (failed) return;
+      sendJSON(upstream, withdrawTool
+        ? { type: 'response.create', response: { tool_choice: 'none' } }
+        : { type: 'response.create' });
+    };
+
     const flushAudio = () => {
       if (!chunkBytes) return;
       if (client.bufferedAmount > 8 * 1024 * 1024) {
@@ -100,7 +174,7 @@ export function createRelay(config, { connectUpstream, setupTimeoutMs = 15000, t
     try { upstream = connect(); }
     catch { fail('Could not connect to OpenAI. Check your connection and API configuration.'); return; }
     setupTimer = setTimeout(() => fail('OpenAI session setup timed out. Try starting a new session.'), setupTimeoutMs);
-    upstream.on('open', () => sendJSON(upstream, { type: 'session.update', session: sessionConfig(config) }));
+    upstream.on('open', () => sendJSON(upstream, { type: 'session.update', session: sessionConfig(config, { hasMaterials }) }));
     upstream.on('unexpected-response', (_req, res) => {
       res.resume();
       fail(`OpenAI rejected the connection (HTTP ${res.statusCode}). Check your API key, model access, and billing.`);
@@ -147,6 +221,15 @@ export function createRelay(config, { connectUpstream, setupTimeoutMs = 15000, t
         case 'response.output_audio.done':
           flushAudio();
           break;
+        case 'response.output_item.done':
+          // Carries call_id, name and the complete arguments in one event. The
+          // call is not acted on here: the response is still streaming, and the
+          // reply has to be requested after it finishes, not during.
+          if (hasMaterials && event.item?.type === 'function_call'
+              && !pendingCalls.some(call => call.callId === event.item.call_id)) {
+            pendingCalls.push({ callId: event.item.call_id, name: event.item.name, args: event.item.arguments });
+          }
+          break;
         case 'response.output_audio_transcript.delta':
           caption += event.delta || '';
           break;
@@ -156,12 +239,33 @@ export function createRelay(config, { connectUpstream, setupTimeoutMs = 15000, t
         case 'response.done':
           flushAudio();
           clearTimeout(turnTimer);
-          busy = false;
           if (event.response?.status !== 'completed') {
+            busy = false;
             fail('OpenAI did not complete the reply. Check model limits and try a new session.');
-          } else {
-            sendJSON(client, { type: 'response.done' });
+            break;
           }
+          // A response whose only output was a function call completes exactly
+          // like a spoken one. Ending the turn here would leave the judge
+          // silent and hand the microphone back mid-thought.
+          if (pendingCalls.length) {
+            const calls = pendingCalls;
+            pendingCalls = [];
+            toolRounds += 1;
+            if (toolRounds > MAX_TOOL_ROUNDS) {
+              // The tool was already withheld on the previous request and the
+              // model called it regardless. Nothing further will make it speak,
+              // so end the turn rather than search and re-ask forever.
+              console.warn('Upstream kept calling search_materials after the tool was withdrawn; ending the turn.');
+              busy = false;
+              sendJSON(client, { type: 'response.done' });
+              break;
+            }
+            resolveToolCalls(calls, { withdrawTool: toolRounds >= MAX_TOOL_ROUNDS })
+              .catch(() => fail('The judge could not consult your materials. Start a new session.'));
+            break;
+          }
+          busy = false;
+          sendJSON(client, { type: 'response.done' });
           break;
         case 'error':
           // Do not forward raw API errors that may echo request contents or credentials.
@@ -186,6 +290,8 @@ export function createRelay(config, { connectUpstream, setupTimeoutMs = 15000, t
       awaitingTranscript = true;
       committedItem = undefined;
       caption = '';
+      pendingCalls = [];
+      toolRounds = 0;
       turnTimer = setTimeout(() => fail('OpenAI took too long to reply. Start a new session and try again.'), turnTimeoutMs);
       try {
         // Keep chunks small; await sends to apply upstream backpressure and preserve order.

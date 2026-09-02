@@ -1,4 +1,5 @@
 import { useMootCourtStore } from "../MootCourtState";
+import { getCurrentBriefId } from "../../materials/briefs";
 import { REALTIME_SAMPLE_RATE, wavToFloat32 } from "./audio";
 
 type Status = { connected: boolean; error: string; speaking: boolean };
@@ -60,7 +61,12 @@ export class ServerUtility {
         if (this.socket && (this.socket.readyState <= WebSocket.OPEN || this.hadSession)) return this.socket;
         this.ready = false;
         this.lastError = "";
-        const socket = new WebSocket(process.env.REACT_APP_REALTIME_URL || "ws://127.0.0.1:43128/realtime");
+        // The brief has to travel on the URL: the relay configures the upstream
+        // session — including whether the judge gets a search tool at all — the
+        // moment this socket opens, before any message could carry it.
+        const briefId = getCurrentBriefId();
+        const base = process.env.REACT_APP_REALTIME_URL || "ws://127.0.0.1:43128/realtime";
+        const socket = new WebSocket(briefId ? `${base}?brief=${encodeURIComponent(briefId)}` : base);
         this.socket = socket;
         socket.onmessage = event => {
             if (this.socket !== socket) return;
@@ -90,6 +96,12 @@ export class ServerUtility {
                         break;
                     case "caption":
                         useMootCourtStore.getState().setSubtitles(message.text);
+                        break;
+                    case "searching":
+                        // The judge is reading the student's materials before
+                        // answering. Without this the turn simply goes quiet for
+                        // a few seconds and looks like the session has hung.
+                        useMootCourtStore.getState().setSubtitles("The judge is consulting your materials…");
                         break;
                     case "response.done":
                         this.awaitingResponse = false;

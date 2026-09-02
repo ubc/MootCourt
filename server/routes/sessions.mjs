@@ -37,6 +37,7 @@ export function createSessionsRouter(config, databaseService) {
       identity: getIdentity(req),
       playerPosition: req.body?.playerPosition,
       settings: req.body?.settings,
+      briefId: req.body?.briefId,
     });
     res.status(201).json({ sessionId: session.sessionId, startedAt: session.startedAt });
   }));

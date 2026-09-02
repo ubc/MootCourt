@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPublicAuthRouter, createAuthRouter } from './routes/auth.mjs';
 import { createSessionsRouter } from './routes/sessions.mjs';
+import { createMaterialsRouter } from './routes/materials.mjs';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -12,7 +13,7 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
  * frontend in production. The WebSocket relay attaches to the same underlying
  * server (see relay.mjs) so everything lives on one origin.
  */
-export async function createApp(config, databaseService) {
+export async function createApp(config, databaseService, materials = null) {
   const app = express();
   const db = databaseService.getDb();
 
@@ -28,6 +29,7 @@ export async function createApp(config, databaseService) {
       realtimeConfigured: Boolean(config.apiKey),
       showLogin: config.auth.showLogin,
       database: databaseService.getConnectionInfo(),
+      materials: Boolean(materials),
     });
   });
 
@@ -55,6 +57,14 @@ export async function createApp(config, databaseService) {
     app.use(createSessionsRouter(config, databaseService));
   } else {
     console.warn('No MONGODB_URI configured — practice sessions will not be saved.');
+  }
+
+  if (materials) {
+    app.use(createMaterialsRouter(config, databaseService, materials));
+  } else {
+    // Answered even when off so the frontend has one thing to ask and can skip
+    // the upload step without guessing from a 404 on an upload attempt.
+    app.get('/api/materials/config', (req, res) => res.json({ enabled: false }));
   }
 
   // In production this server also serves the compiled React app. In

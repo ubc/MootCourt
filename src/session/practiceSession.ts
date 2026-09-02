@@ -8,6 +8,8 @@
  * failed. Failures are logged and swallowed.
  */
 
+import { getCurrentBriefId } from '../materials/briefs';
+
 let currentSessionId: string | null = null;
 let saved = false;
 
@@ -34,6 +36,9 @@ export async function startPracticeSession(config: any): Promise<void> {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 playerPosition: config?.playerPosition,
+                // Links the run to the materials filed just before it. Null when
+                // the student uploaded nothing, or uploads are not configured.
+                briefId: getCurrentBriefId(),
                 settings: {
                     totalTime: config?.totalTime,
                     questionInterval: config?.questionInterval,
