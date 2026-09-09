@@ -97,10 +97,6 @@ Nikos Harris, Q.C.
 Barbara Wang BA, JD
 
 
-## Troubleshooting
-- High severity vulnerability regarding *Inefficient Regular Expression Complexity in nth-check* is likely a false alarm. Can ignore, do not force fix as it may break the project.
-- installing the above modules may lead to error *"unable to resolve dependency tree"*. Force install instead (overrides warning for incompatible react versions, shouldn't break the code)
-
 ## Documentation
 - [Development Documentation](https://github.com/ubcemergingmedialab/MootCourt/blob/master/Development%20Documentation.md)
 - [Project Wiki](https://wiki.ubc.ca/Documentation:Moot_Court#Introduction)

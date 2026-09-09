@@ -40,6 +40,11 @@ function pressMootingResources() {
     resetDisplayedUI("Main", "MootingResources");
 }
 
+function pressTroubleShooting() {
+    resetDisplayedUI("Main", "TroubleShooting");
+}
+
+
 function pressFeedback() {
     resetDisplayedUI("Main", "Feedback");
 }
@@ -56,6 +61,11 @@ function pressBackFromDifficulty() {
 function pressBackFromPosition() {
     resetDisplayedUI("Position", "Difficulty");
 }
+
+function pressBackFromTroubleShooting() {
+    resetDisplayedUI("TroubleShooting", "Main");
+}
+
 
 function pressBackToMenu2() {
     resetDisplayedUI("Tutorial", "Main");
@@ -264,6 +274,9 @@ function LandingPageMenu({updateAppState, updateConfig, config}) {
                         <button className="button wide-button buttonFeedback" type="button" onClick={(event) => pressFeedback()}>
                             <a className="button wide-button buttonFeedback" href="https://ubc.ca1.qualtrics.com/jfe/form/SV_2l3a4rVJhxIcKeq" target="_blank">GIVE FEEDBACK</a>
                         </button>
+                        <button className="button" type="button" onClick={(event) => pressTroubleShooting()}> Need Help? </button>
+                        
+
                     </div>
                 </div>
             </div>
@@ -522,6 +535,37 @@ function LandingPageMenu({updateAppState, updateConfig, config}) {
             </div>
         }
 
+{<div className="stayhidden" id="TroubleShooting">
+            <div className="sideMenuInner">
+                <div className="sideMenuTitleText">
+                    <h1>Trouble Shooting</h1>
+                    <div className="hr-2"></div>
+                </div>
+                <div className="sideMenuContents">
+                    <p>If you experience the following:</p>
+                    <ul>
+                        <li>No audio sound</li>
+                        <li>Audio cut off (Judge doesn’t complete sentence)</li>
+                        <li>White screen</li>
+                        <li>Frozen screen (Timer or judge isn’t moving)</li>
+                    </ul>
+                    <p>We recommend changing the browser to either <b>Firefox or Chrome</b>. You may also try changing your device.</p>
+                    <p>If you continue experiencing issues or have a different problem that isn't listed above, please report the bugs here.</p>
+
+                    <div className="buttonFlexBox buttonFlexBox-Position" >
+                        <button className="button narrow-button buttonFeedback" type="button" onClick={(event) => pressFeedback()} >
+                            <a className="button narrow-button buttonFeedback" href=" https://ubc.ca1.qualtrics.com/jfe/form/SV_bQpPxMLkx4ShRZk" target="_blank">REPORT BUGS HERE</a>
+                        </button>
+                    </div>
+
+                </div>
+                <div className="sideMenuBottom">
+                    <button className="button wide-button" type="button" onClick={(event) => pressBackFromTroubleShooting()}>Back to Menu</button>
+                </div>
+                
+                
+            </div>
+        </div>}
     </>
 }
 
