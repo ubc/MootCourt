@@ -1,4 +1,4 @@
-import { ServerUtility } from './ServerUtility';
+import { getRealtimeUrl, ServerUtility } from './ServerUtility';
 import { floatToPcm16, wavToFloat32 } from './audio';
 import { useMootCourtStore } from '../MootCourtState';
 
@@ -78,11 +78,21 @@ afterEach(() => {
     Blob.prototype.arrayBuffer = originalArrayBuffer;
 });
 
-test('connects locally and only becomes ready after upstream configuration', () => {
-    expect(socket.url).toBe('ws://127.0.0.1:43128/realtime');
+test('connects to the same origin and only becomes ready after upstream configuration', () => {
+    expect(socket.url).toBe('ws://localhost/realtime');
     expect(ServerUtility.isWebSocketConnected()).toBe(false);
     socket.receive({ type: 'ready' });
     expect(ServerUtility.isWebSocketConnected()).toBe(true);
+});
+
+test('uses a secure same-origin WebSocket on HTTPS', () => {
+    expect(getRealtimeUrl(undefined, { protocol: 'https:', host: 'mootcourt.example.ubc.ca' }))
+        .toBe('wss://mootcourt.example.ubc.ca/realtime');
+});
+
+test('allows an explicitly configured realtime URL to override the same-origin default', () => {
+    expect(getRealtimeUrl('ws://127.0.0.1:43128/realtime', { protocol: 'https:', host: 'mootcourt.example.ubc.ca' }))
+        .toBe('ws://127.0.0.1:43128/realtime');
 });
 
 test('converts/clamps microphone samples to signed little-endian PCM16', () => {

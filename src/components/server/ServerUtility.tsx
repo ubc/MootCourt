@@ -4,6 +4,15 @@ import { REALTIME_SAMPLE_RATE, wavToFloat32 } from "./audio";
 type Status = { connected: boolean; error: string; speaking: boolean };
 type TranscriptListener = (text: string, duration: number | null) => void;
 
+export function getRealtimeUrl(
+    configuredUrl = process.env.REACT_APP_REALTIME_URL,
+    location: Pick<Location, "protocol" | "host"> = window.location,
+): string {
+    if (configuredUrl) return configuredUrl;
+    const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${location.host}/realtime`;
+}
+
 // One owner for socket events and queued playback. The local service holds the API key.
 export class ServerUtility {
     static socket: WebSocket | null = null;
@@ -60,7 +69,7 @@ export class ServerUtility {
         if (this.socket && (this.socket.readyState <= WebSocket.OPEN || this.hadSession)) return this.socket;
         this.ready = false;
         this.lastError = "";
-        const socket = new WebSocket(process.env.REACT_APP_REALTIME_URL || "ws://127.0.0.1:43128/realtime");
+        const socket = new WebSocket(getRealtimeUrl());
         this.socket = socket;
         socket.onmessage = event => {
             if (this.socket !== socket) return;
