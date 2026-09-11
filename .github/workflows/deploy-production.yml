@@ -1,0 +1,87 @@
+# A production release. Deliberately manual: nothing here runs on a push.
+#
+# This job never touches a server and cannot -- a GitHub-hosted runner cannot
+# reach these hosts at all (verified 2026-09-11: port 22 times out from a
+# runner). All it does is record that a release was asked for. An agent on the
+# Ansible control host notices and connects outward to do the work.
+name: Deploy to production
+
+on:
+    workflow_dispatch:
+
+permissions:
+    deployments: write
+    contents: read
+
+concurrency:
+    group: deploy-production
+    cancel-in-progress: false
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+        timeout-minutes: 45
+        environment:
+            name: production
+            url: https://mootcourt.apps.ltic.ubc.ca
+        steps:
+            - name: Refuse anything but main
+              # workflow_dispatch offers a branch picker. Without this the
+              # button quietly becomes "deploy an arbitrary branch to
+              # production".
+              if: github.ref != 'refs/heads/main'
+              run: |
+                  echo "::error::Production deploys run from main only. Got ${{ github.ref }}."
+                  exit 1
+
+            - name: Request the deployment
+              id: request
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  # auto_merge and required_contexts are both load-bearing.
+                  # auto_merge defaults to TRUE, which makes GitHub attempt a
+                  # branch merge and return 202 with no deployment created.
+                  # A non-empty required_contexts makes it refuse with 409
+                  # until every status check passes -- a gate we do not want,
+                  # because pressing the button is the gate.
+                  # The body is built as JSON rather than with -f/-F flags,
+                  # because those cannot express an empty array and
+                  # required_contexts MUST be one.
+                  payload=$(printf '{"ref":"%s","environment":"production","auto_merge":false,"required_contexts":[],"description":"Requested by %s"}' \
+                      "$GITHUB_SHA" "$GITHUB_ACTOR")
+                  id=$(printf '%s' "$payload" \
+                      | gh api "repos/${GITHUB_REPOSITORY}/deployments" --input - --jq .id)
+                  echo "id=${id}" >> "$GITHUB_OUTPUT"
+                  echo "Deployment ${id} requested for ${GITHUB_SHA}."
+
+            - name: Wait for the control host to finish it
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  DEPLOYMENT_ID: ${{ steps.request.outputs.id }}
+              run: |
+                  # The agent polls on a 60s timer, so the first minute of this
+                  # is expected silence rather than a hang.
+                  deadline=$(( $(date +%s) + 2400 ))
+                  last=''
+                  api="repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses"
+                  while [ "$(date +%s)" -lt "$deadline" ]; do
+                      state=$(gh api "$api" --jq '.[0].state // "pending"')
+                      description=$(gh api "$api" --jq '.[0].description // ""')
+                      if [ "$state" != "$last" ]; then
+                          echo "status: ${state} — ${description}"
+                          last="$state"
+                      fi
+                      case "$state" in
+                          success)  echo "Deployed."; exit 0 ;;
+                          failure|error)
+                              echo "::error::Deploy reported ${state}: ${description}"
+                              exit 1 ;;
+                          inactive)
+                              echo "::error::Superseded by a newer request."
+                              exit 1 ;;
+                      esac
+                      sleep 15
+                  done
+                  echo "::error::No terminal status within 40 minutes. Check the deploy agent on the control host."
+                  exit 1
