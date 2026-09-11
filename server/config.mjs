@@ -29,10 +29,26 @@ export function readConfig(env = process.env) {
     model: env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2.1',
     transcriptionModel: env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
     voice: env.OPENAI_REALTIME_VOICE || 'alloy',
-    origins: [`http://localhost:${appPort}`, `http://127.0.0.1:${appPort}`, publicUrl],
+    origins: readOrigins(env, appPort, publicUrl),
     mongo: readMongoConfig(env),
     auth: readAuthConfig(env, publicUrl),
   };
+}
+
+// The origins the WebSocket relay will accept an upgrade from (server/relay.mjs).
+//
+// Development needs both loopback origins: the browser sits on the React dev
+// server, or on the Express port directly. A deployed environment must trust
+// the deployed origin alone, because a loopback address is loopback on the
+// CLIENT's machine and not on ours -- trusting one there does not narrow the
+// allowlist to us, it widens it to everybody.
+//
+// Do not add entries here to make something work against a deployed host.
+// relay.mjs seeds allowedHosts with 127.0.0.1 and localhost independently of
+// this list, so on-host health checks do not need them.
+function readOrigins(env, appPort, publicUrl) {
+  if (env.NODE_ENV === 'production') return [publicUrl];
+  return [`http://localhost:${appPort}`, `http://127.0.0.1:${appPort}`, publicUrl];
 }
 
 function readMongoConfig(env) {
