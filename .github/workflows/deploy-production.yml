@@ -66,8 +66,17 @@ jobs:
                   last=''
                   api="repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses"
                   while [ "$(date +%s)" -lt "$deadline" ]; do
-                      state=$(gh api "$api" --jq '.[0].state // "pending"')
-                      description=$(gh api "$api" --jq '.[0].description // ""')
+                      # run: steps execute under `set -e`. A command
+                      # substitution that fails takes down the whole step
+                      # under errexit -- but errexit only skips the
+                      # while-condition, not the body. Without the `||`
+                      # fallbacks below, one transient API hiccup anywhere in
+                      # this ~160-iteration, 40-minute loop would kill the
+                      # step and report it as a deploy failure, even though
+                      # the deploy itself may be fine. Treat a failed read as
+                      # "not yet terminal" and keep polling instead.
+                      state=$(gh api "$api" --jq '.[0].state // "pending"') || state="pending"
+                      description=$(gh api "$api" --jq '.[0].description // ""') || description=""
                       if [ "$state" != "$last" ]; then
                           echo "status: ${state} — ${description}"
                           last="$state"
