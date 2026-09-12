@@ -48,10 +48,33 @@ jobs:
                   # The body is built as JSON rather than with -f/-F flags,
                   # because those cannot express an empty array and
                   # required_contexts MUST be one.
-                  payload=$(printf '{"ref":"%s","environment":"production","auto_merge":false,"required_contexts":[],"description":"Requested by %s"}' \
+                  #
+                  # "task" is deliberately NOT the API default of "deploy". It
+                  # is the marker that tells the deploy agent this record came
+                  # from this pipeline, and there are two other kinds of record
+                  # in this same environment that it must not act on:
+                  #   - the deployment GitHub Actions creates by itself for any
+                  #     job declaring `environment:`, as this one does. That
+                  #     record stays in_progress for as long as the job below
+                  #     waits, which is long enough for the agent to call it
+                  #     abandoned and alert on it.
+                  #   - anything POSTed straight to the Deployments API by a
+                  #     holder of `deployments: write`. The `production`
+                  #     environment gates workflow JOBS, not that API, so the
+                  #     main-only guard above is advisory as far as the API is
+                  #     concerned.
+                  # Keep this string in step with DEPLOY_TASK in
+                  # roles/deploy_agent/files/tlef-deploy-poll (tlef-ansible).
+                  payload=$(printf '{"ref":"%s","task":"tlef-deploy","environment":"production","auto_merge":false,"required_contexts":[],"description":"Requested by %s"}' \
                       "$GITHUB_SHA" "$GITHUB_ACTOR")
                   id=$(printf '%s' "$payload" \
                       | gh api "repos/${GITHUB_REPOSITORY}/deployments" --input - --jq .id)
+                  # Without this, an empty id builds ".../deployments//statuses",
+                  # whose 404 the wait loop's `|| state="pending"` swallows --
+                  # so the run spins for the full 40 minutes and then sends an
+                  # operator to investigate a control host that is perfectly
+                  # healthy. Fail here instead, saying what actually happened.
+                  case "$id" in ''|*[!0-9]*) echo "::error::No deployment id returned by the API"; exit 1 ;; esac
                   echo "id=${id}" >> "$GITHUB_OUTPUT"
                   echo "Deployment ${id} requested for ${GITHUB_SHA}."
 
@@ -66,17 +89,38 @@ jobs:
                   last=''
                   api="repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses"
                   while [ "$(date +%s)" -lt "$deadline" ]; do
-                      # run: steps execute under `set -e`. A command
-                      # substitution that fails takes down the whole step
-                      # under errexit -- but errexit only skips the
-                      # while-condition, not the body. Without the `||`
-                      # fallbacks below, one transient API hiccup anywhere in
-                      # this ~160-iteration, 40-minute loop would kill the
-                      # step and report it as a deploy failure, even though
-                      # the deploy itself may be fine. Treat a failed read as
-                      # "not yet terminal" and keep polling instead.
-                      state=$(gh api "$api" --jq '.[0].state // "pending"') || state="pending"
-                      description=$(gh api "$api" --jq '.[0].description // ""') || description=""
+                      # ONE call per iteration, and it sorts.
+                      #
+                      # Sorting: GitHub does not document an order for this
+                      # list, and the deploy agent on the control host does not
+                      # trust one -- it sorts every list it reads and has a
+                      # test for the case where the order is wrong. Reading
+                      # .[0] here was the other half of that disagreement: if
+                      # the agent is right, a terminal status could arrive in a
+                      # position this loop never looked at, and a successful
+                      # deploy would be reported as a 40-minute timeout. Sort
+                      # by created_at then id, descending, exactly as the agent
+                      # does, rather than trusting the position.
+                      #
+                      # One call: state and description used to be two separate
+                      # requests, so a logged description could belong to a
+                      # different status than the state logged beside it, and
+                      # the loop made ~320 API calls per run. Both fields now
+                      # come out of the same response, tab-separated.
+                      #
+                      # The `||` fallback is load-bearing. run: steps execute
+                      # under `set -e`, and errexit only skips the
+                      # while-condition, not the body -- so without it, one
+                      # transient API hiccup anywhere in this ~160-iteration,
+                      # 40-minute loop would kill the step and report a healthy
+                      # deploy as a failure. Treat a failed read as "not yet
+                      # terminal" and keep polling. The two ${} expansions
+                      # below are pure bash, so they add no new way to fail.
+                      newest=$(gh api "$api" --jq \
+                          'sort_by(.created_at, .id) | reverse | .[0] | "\(.state // "pending")\t\(.description // "")"') \
+                          || newest=$'pending\t'
+                      state=${newest%%$'\t'*}
+                      description=${newest#*$'\t'}
                       if [ "$state" != "$last" ]; then
                           echo "status: ${state} — ${description}"
                           last="$state"
