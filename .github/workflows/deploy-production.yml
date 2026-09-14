@@ -138,3 +138,43 @@ jobs:
                   done
                   echo "::error::No terminal status within 40 minutes. Check the deploy agent on the control host."
                   exit 1
+
+            - name: Withdraw the request if the control host never picked it up
+              # This run only files a request; the control host is what acts on
+              # it. So if the run is cancelled, or gives up above while the
+              # control host is down, a request nobody has claimed stays open --
+              # and the control host deploys it the next time it looks. That
+              # could be hours later, after a newer commit has been deployed by
+              # hand, putting the older one back. Marked inactive, the agent
+              # treats it as finished.
+              #
+              # Only an UNCLAIMED request is withdrawn. Once the control host
+              # has posted a status the deploy is under way or over, cancelling
+              # this run does not stop it, and the agent's own status has to
+              # stay the last word: an inactive posted over a dead in_progress
+              # would also silence the agent's "deploy abandoned" alert.
+              #
+              # Not airtight. A cancel landing in the moment between the agent
+              # reading the statuses and posting in_progress still deploys, and
+              # closing that needs a compare-and-set the Deployments API does
+              # not offer.
+              if: ${{ (cancelled() || failure()) && steps.request.outputs.id != '' }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  DEPLOYMENT_ID: ${{ steps.request.outputs.id }}
+              run: |
+                  api="repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses"
+                  if ! count=$(gh api "$api" --jq 'length'); then
+                      echo "::error::Could not read deployment ${DEPLOYMENT_ID}. If the control host has not picked it up, it will still deploy it later. Check the repository's Environments page."
+                      exit 1
+                  fi
+                  if [ "$count" = "0" ]; then
+                      gh api --method POST "$api" \
+                          -f state=inactive \
+                          -f description="Withdrawn: the run ended before the control host picked it up." \
+                          --silent \
+                          || { echo "::error::Could not withdraw deployment ${DEPLOYMENT_ID}. The control host will still deploy it when it next looks."; exit 1; }
+                      echo "Withdrew deployment ${DEPLOYMENT_ID}. Nothing will be deployed."
+                  else
+                      echo "The control host already picked up deployment ${DEPLOYMENT_ID}; its status shows how that ended."
+                  fi
