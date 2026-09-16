@@ -15,6 +15,9 @@
 # production
 /build
 
+# site-wide instructor settings written by the server (see server/siteSettings.mjs)
+/data
+
 # misc
 .DS_Store
 .env.local

@@ -21,5 +21,7 @@
     "The Appellant’s factum takes a different view of the cases you are relying upon. Can you tell me why the Appellant’s view of those cases is not correct?",
     "On a policy level, should not the law of contract attempt to protect the interests of less powerful parties, including individual students and employees, rather than more powerful parties like businesses?"
   ],
-    "isInteliJudge": true
+    "isInteliJudge": true,
+    "showPace": true,
+    "wpm": { "slowBelow": 120, "fastAbove": 160, "tooFastAbove": 180 }
 }

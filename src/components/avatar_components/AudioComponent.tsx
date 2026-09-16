@@ -4,6 +4,8 @@ import "../general/timer.css";
 import { useMootCourtStore } from "../MootCourtState";
 import { ServerUtility } from "../server/ServerUtility";
 import { audioBufferToPcm16 } from "../server/audio";
+import PaceIndicator from "../ui/PaceIndicator";
+import { countWords, PaceTurn, spreadWordTimestamps, wordsPerMinute } from "../../pace/pace";
 declare module "react" {
   interface CSSProperties {
     "--dynamic-color"?: string; // Declare your custom property
@@ -133,6 +135,7 @@ function AudioComponent({
   const [showPopup, setShowPopup] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState(ServerUtility.getStatus());
+  const [paceTurns, setPaceTurns] = useState<PaceTurn[]>([]);
   const isWebSocketConnected = connectionStatus.connected;
   const recorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -148,9 +151,15 @@ function AudioComponent({
   const mountedRef = useRef(true);
   const popupTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // Keep the assessment inputs and calculations exactly as before the migration.
-  const sendToAssessment = (transcript, startTime) => {
-    runningTimestamps.current.push([transcript, startTime]);
+  // AssessmentPage and the saved session both read runningTimestamps as
+  // [word, startMs, endMs] entries. The transcription model gives no word
+  // timing, so each turn's words are spread evenly across the time Enter was
+  // held — an approximation, but one with real timestamps, which is what the
+  // pacing graph needs to work at all.
+  const sendToAssessment = (transcript: string, duration: number | null, startTime: number | null) => {
+    if (startTime !== null && duration !== null) {
+      runningTimestamps.current.push(...spreadWordTimestamps(transcript, startTime, duration));
+    }
     config.runningTimestamps = runningTimestamps.current;
     conversation.current = createConversation(
       conversation.current,
@@ -159,15 +168,18 @@ function AudioComponent({
     );
     config.conversation = conversation.current;
   };
-  const transcriptHandlerRef = useRef((text: string, duration: number | null) => {});
-  transcriptHandlerRef.current = (text, duration) => {
-    sendToAssessment(text, duration);
+  const transcriptHandlerRef = useRef((text: string, duration: number | null, startTime: number | null) => {});
+  transcriptHandlerRef.current = (text, duration, startTime) => {
+    sendToAssessment(text, duration, startTime);
+    const words = countWords(text);
+    const wpm = duration === null ? null : wordsPerMinute(words, duration);
+    if (wpm !== null) setPaceTurns(prev => [...prev, { words, durationMs: duration as number, wpm }]);
     onTranscriptChange(text);
   };
 
   useEffect(() => ServerUtility.subscribeStatus(setConnectionStatus), []);
-  useEffect(() => ServerUtility.subscribeTranscript((text, duration) => {
-    transcriptHandlerRef.current(text, duration);
+  useEffect(() => ServerUtility.subscribeTranscript((text, duration, startTime) => {
+    transcriptHandlerRef.current(text, duration, startTime);
   }), []);
 
   const handleNoSpeechDetected = () => {
@@ -310,11 +322,6 @@ function AudioComponent({
 
   return (
     <Html fullscreen style={{ pointerEvents: "none" }}>
-      {connectionStatus.error && (
-        <div role="alert" style={{ position: "absolute", top: 45, right: 10, maxWidth: 420, padding: 12, background: "#251b1b", color: "white", borderRadius: 6 }}>
-          {connectionStatus.error}
-        </div>
-      )}
 
       <div
         className="micIndicatorContainer"
@@ -412,9 +419,12 @@ function AudioComponent({
           top: "10px",
           right: "10px",
           display: "flex",
-          alignItems: "center",
+          flexDirection: "column",
+          alignItems: "flex-end",
+          gap: "8px",
         }}
       >
+      <div style={{ display: "flex", alignItems: "center" }}>
         {/* Status Text */}
         <span
           style={{
@@ -439,6 +449,15 @@ function AudioComponent({
             border: "2px solid black",
           }}
         ></div>
+      </div>
+
+      {config?.showPace && <PaceIndicator turns={paceTurns} thresholds={config?.wpm} />}
+
+      {connectionStatus.error && (
+        <div role="alert" style={{ maxWidth: 420, padding: 12, background: "#251b1b", color: "white", borderRadius: 6 }}>
+          {connectionStatus.error}
+        </div>
+      )}
       </div>
     </Html>
   );

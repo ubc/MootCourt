@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPublicAuthRouter, createAuthRouter } from './routes/auth.mjs';
 import { createSessionsRouter } from './routes/sessions.mjs';
+import { createSettingsRouter } from './routes/settings.mjs';
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -12,7 +13,7 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
  * frontend in production. The WebSocket relay attaches to the same underlying
  * server (see relay.mjs) so everything lives on one origin.
  */
-export async function createApp(config, databaseService) {
+export async function createApp(config, databaseService, settingsStore) {
   const app = express();
   const db = databaseService.getDb();
 
@@ -34,6 +35,9 @@ export async function createApp(config, databaseService) {
   // Always available, both modes — this is how the frontend decides whether to
   // render a login screen at all.
   app.use(createPublicAuthRouter(config));
+
+  // Site-wide instructor settings: available in every mode, database or not.
+  if (settingsStore) app.use(createSettingsRouter(settingsStore));
 
   if (config.auth.showLogin) {
     if (!db) throw new Error('SHOW_LOGIN is on but the database is not connected.');

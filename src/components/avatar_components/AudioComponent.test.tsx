@@ -6,7 +6,7 @@ import { useMootCourtStore } from '../MootCourtState';
 
 jest.mock('@react-three/drei', () => ({ Html: ({ children }) => <>{children}</> }));
 jest.mock('../server/audio', () => ({ audioBufferToPcm16: async () => new Uint8Array(4800) }));
-let mockTranscriptListener: (text: string, duration: number) => void;
+let mockTranscriptListener: (text: string, duration: number, startTime: number) => void;
 jest.mock('../server/ServerUtility', () => ({ ServerUtility: {
     getStatus: () => ({ connected: true, error: '', speaking: false }),
     subscribeStatus: () => () => {},
@@ -90,14 +90,30 @@ test('release while microphone permission is pending does not leave a recording 
     expect(ServerUtility.sendRecordingToServer).not.toHaveBeenCalled();
 });
 
-test('assessment still receives transcript/duration pairs and existing conversation objects', () => {
+test('assessment receives per-word [word, start, end] timestamps spread across the turn', () => {
     const config: any = {};
     const onTranscriptChange = jest.fn();
     mount(config, onTranscriptChange);
-    act(() => mockTranscriptListener('My submission', 1234));
-    expect(config.runningTimestamps).toEqual([['My submission', 1234]]);
+    act(() => mockTranscriptListener('My submission', 1000, 5000));
+    expect(config.runningTimestamps).toEqual([['My', 5000, 5500], ['submission', 5500, 6000]]);
     expect(config.conversation).toEqual([{ role: 'user', content: 'My submission' }]);
     expect(onTranscriptChange).toHaveBeenCalledWith('My submission');
+});
+
+test('pace indicator is shown only when enabled and updates after each turn', () => {
+    const { queryByRole, rerender } = render(<AudioComponent config={{ showPace: false }} appPaused={false} onTranscriptChange={jest.fn()} elapsedTime={0} />);
+    expect(queryByRole('status')).toBeNull();
+
+    const config: any = { showPace: true, wpm: { slowBelow: 120, fastAbove: 160, tooFastAbove: 180 } };
+    rerender(<AudioComponent config={config} appPaused={false} onTranscriptChange={jest.fn()} elapsedTime={0} />);
+    expect(queryByRole('status')).toHaveTextContent('Pace: speak to measure');
+    // 70 words over 30 seconds = 140 wpm, inside the green band.
+    act(() => mockTranscriptListener(Array(70).fill('word').join(' '), 30000, 1000));
+    expect(queryByRole('status')).toHaveTextContent('140 wpm · Good pace');
+    // 30 words in 5 seconds = 360 wpm; 100 words over 35 seconds averages 171.
+    act(() => mockTranscriptListener(Array(30).fill('word').join(' '), 5000, 40000));
+    expect(queryByRole('status')).toHaveTextContent('360 wpm · Too fast');
+    expect(queryByRole('status')).toHaveTextContent('Session average 171 wpm over 2 turns');
 });
 
 test('leaving the scene stops the microphone without sending unfinished audio', async () => {

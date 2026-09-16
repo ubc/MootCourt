@@ -1,3 +1,8 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
 export const JUDGE_INSTRUCTIONS = "Play the role of a Judge in Canada in a Judicial Interrogation System practiced in the Socratic method and the user is orally presenting at a Moot Court practice. Keep the response under 4 sentences: Find their weakest point and ask a question about that single idea to challenge, provoke thought, and deepen the student's understanding of law.";
 
 // Accepts SHOW_LOGIN=true / True / TRUE / 1. Anything else — including unset,
@@ -30,6 +35,8 @@ export function readConfig(env = process.env) {
     transcriptionModel: env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
     voice: env.OPENAI_REALTIME_VOICE || 'alloy',
     origins: readOrigins(env, appPort, publicUrl),
+    // Where site-wide instructor settings are persisted (see siteSettings.mjs).
+    settingsFile: env.SETTINGS_FILE?.trim() || path.join(projectRoot, 'data', 'site-settings.json'),
     mongo: readMongoConfig(env),
     auth: readAuthConfig(env, publicUrl),
   };
@@ -114,11 +121,17 @@ export function validateConfig(config) {
   return problems;
 }
 
-export function sessionConfig(config) {
+/**
+ * The OpenAI session for one practice run. `instructions` defaults to the
+ * built-in prompt; the relay passes the instructor's current prompt from the
+ * site settings store so a change applies to the next session without a
+ * restart.
+ */
+export function sessionConfig(config, instructions = JUDGE_INSTRUCTIONS) {
   return {
     type: 'realtime',
     model: config.model,
-    instructions: JUDGE_INSTRUCTIONS,
+    instructions,
     output_modalities: ['audio'],
     // Keep answers short without applying the old text-token budget to audio tokens.
     max_output_tokens: 4096,
