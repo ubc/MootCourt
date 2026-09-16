@@ -116,7 +116,7 @@ test('one audio submission produces one assessment transcript with the existing 
     socket.receive({ type: 'transcript', text: 'My argument' });
     socket.receive({ type: 'transcript', text: 'duplicate' });
     expect(listener).toHaveBeenCalledTimes(1);
-    expect(listener).toHaveBeenCalledWith('My argument', 1234);
+    expect(listener).toHaveBeenCalledWith('My argument', 1234, null);
     expect(socket.send).toHaveBeenCalledTimes(1);
     expect(socket.send).toHaveBeenCalledWith(pcm);
     expect(useMootCourtStore.getState().subtitles).toBe('My argument');

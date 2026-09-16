@@ -2,7 +2,8 @@ import { useMootCourtStore } from "../MootCourtState";
 import { REALTIME_SAMPLE_RATE, wavToFloat32 } from "./audio";
 
 type Status = { connected: boolean; error: string; speaking: boolean };
-type TranscriptListener = (text: string, duration: number | null) => void;
+// startTime is when Enter went down for the turn; duration is how long it was held.
+type TranscriptListener = (text: string, duration: number | null, startTime: number | null) => void;
 
 export function getRealtimeUrl(
     configuredUrl = process.env.REACT_APP_REALTIME_URL,
@@ -33,6 +34,7 @@ export class ServerUtility {
     private static nextStartTime = 0;
     private static draining = false;
     private static submittedDuration: number | null = null;
+    private static submittedStart: number | null = null;
     private static transcriptReceived = false;
     private static statusListeners = new Set<(status: Status) => void>();
     private static transcriptListeners = new Set<TranscriptListener>();
@@ -95,7 +97,7 @@ export class ServerUtility {
                         this.accumulatedUserSpeech = message.text;
                         this.wordCount += this.countWords(message.text);
                         useMootCourtStore.getState().setSubtitles(message.text);
-                        this.transcriptListeners.forEach(listener => listener(message.text, this.submittedDuration));
+                        this.transcriptListeners.forEach(listener => listener(message.text, this.submittedDuration, this.submittedStart));
                         break;
                     case "caption":
                         useMootCourtStore.getState().setSubtitles(message.text);
@@ -159,6 +161,7 @@ export class ServerUtility {
         if (pcm.length > 24000 * 2 * 600) throw new Error("Please keep each recording under 10 minutes.");
         this.lastError = "";
         this.submittedDuration = duration;
+        this.submittedStart = this.talkStartTime;
         this.transcriptReceived = false;
         this.accumulatedUserSpeech = "";
         this.awaitingResponse = true;

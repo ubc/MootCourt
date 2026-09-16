@@ -4,6 +4,7 @@ import defaultData from "./components/general/default_settings.json";
 import AppLoader from "./components/general/AppLoader";
 import { useAuth } from "./auth/useAuth";
 import { startPracticeSession, savePracticeSession } from "./session/practiceSession";
+import { fetchSiteSettings } from "./settings/siteSettings";
 
 const LazyLogin = lazy(() => import("./components/ui/LoginPage"));
 
@@ -70,6 +71,19 @@ function App() {
   useEffect(() => {
     console.log(`Loading state changed: ${loading} time${Date.now()}`);
   }, [loading]);
+
+  // Site-wide instructor settings: the pace thresholds and whether the pace
+  // indicator starts on. Best-effort — the JSON defaults stand if the local
+  // service is not running. The student can still flip showPace on the
+  // landing page; this only sets its starting value.
+  useEffect(() => {
+    let cancelled = false;
+    fetchSiteSettings().then(result => {
+      if (cancelled || !result) return;
+      setConfig(prev => ({ ...prev, showPace: result.settings.showPaceByDefault, wpm: result.settings.wpm }));
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   if (loading || auth.status === "loading") return <AppLoader />;
 

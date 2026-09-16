@@ -2,6 +2,7 @@ import { validateConfig } from './config.mjs';
 import { createRelay } from './relay.mjs';
 import { createApp } from './app.mjs';
 import databaseService from './db.mjs';
+import { createSiteSettingsStore } from './siteSettings.mjs';
 
 /**
  * Shared startup for both entry points: `npm run server` (server/index.mjs) and
@@ -40,13 +41,22 @@ export async function startServer(config, { onFatal } = {}) {
     console.warn(`MongoDB unavailable (${error.message}). Continuing without saved sessions.`);
   }
 
-  const app = await createApp(config, databaseService);
-  const relay = createRelay(config, { requestListener: app });
+  // Instructor settings live in a JSON file, so they work with or without
+  // MongoDB. Loaded before the app so the first session already sees them.
+  const settingsStore = createSiteSettingsStore(config.settingsFile);
+  await settingsStore.load();
+
+  const app = await createApp(config, databaseService, settingsStore);
+  const relay = createRelay(config, {
+    requestListener: app,
+    getInstructions: () => settingsStore.get().judgePrompt,
+  });
   await relay.listen();
 
   return {
     relay,
     databaseService,
+    settingsStore,
     close: async () => {
       await relay.close();
       await databaseService.disconnect();

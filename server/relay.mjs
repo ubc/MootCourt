@@ -13,7 +13,7 @@ function closeSocket(socket) {
   socket.terminate();
 }
 
-export function createRelay(config, { connectUpstream, setupTimeoutMs = 15000, turnTimeoutMs = 120000, requestListener } = {}) {
+export function createRelay(config, { connectUpstream, setupTimeoutMs = 15000, turnTimeoutMs = 120000, requestListener, getInstructions } = {}) {
   const connect = connectUpstream || (() => new WebSocket(
     `wss://api.openai.com/v1/realtime?model=${encodeURIComponent(config.model)}`,
     { headers: { Authorization: `Bearer ${config.apiKey}` }, handshakeTimeout: setupTimeoutMs, maxPayload: 16 * 1024 * 1024 },
@@ -100,7 +100,9 @@ export function createRelay(config, { connectUpstream, setupTimeoutMs = 15000, t
     try { upstream = connect(); }
     catch { fail('Could not connect to OpenAI. Check your connection and API configuration.'); return; }
     setupTimer = setTimeout(() => fail('OpenAI session setup timed out. Try starting a new session.'), setupTimeoutMs);
-    upstream.on('open', () => sendJSON(upstream, { type: 'session.update', session: sessionConfig(config) }));
+    // Read the prompt at open time, not at startup, so an instructor's edit
+    // reaches the next session rather than the next deploy.
+    upstream.on('open', () => sendJSON(upstream, { type: 'session.update', session: sessionConfig(config, getInstructions?.() || undefined) }));
     upstream.on('unexpected-response', (_req, res) => {
       res.resume();
       fail(`OpenAI rejected the connection (HTTP ${res.statusCode}). Check your API key, model access, and billing.`);

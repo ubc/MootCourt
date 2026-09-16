@@ -248,8 +248,33 @@ h2 {
 }
 
 #Main .buttonFlexBox {
-    max-height: 60%;
+    /* Let the stack use the whole panel and shrink its buttons rather than
+       spill the last ones out of the blue background. */
+    max-height: none;
+    min-height: 0;
     border-radius: 20px;
+}
+
+#Main .buttonFlexBox > .button {
+    min-height: 0;
+    padding-top: 1.2vh;
+    padding-bottom: 1.2vh;
+    overflow: hidden;
+}
+
+/* Secondary actions share one row so the primary stack keeps its room. */
+#Main .menuSecondaryRow {
+    display: flex;
+    gap: 1.5vw;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+#Main .menuSecondaryRow .menuSecondaryButton {
+    flex: 1 1 0;
+    padding: 1.2vh 1vw;
+    font-size: calc(0.8vw + 0.4vh);
+    white-space: nowrap;
 }
 
 .subformitem {
@@ -816,3 +841,105 @@ input[type=number]::-webkit-outer-spin-button {
     border-color: #F7CA18;
     margin-bottom: 30px;
   }
+
+/* Instructor settings panel */
+.instructorSettings {
+    padding-top: 2%;
+    overflow-y: auto;
+    /* A flex child only scrolls if it is allowed to shrink below its content. */
+    min-height: 0;
+    padding-right: 8px;
+}
+
+/* The shared label rule floats labels beside their input; this panel stacks
+   everything in one column instead. */
+.sideMenuInner .instructorSettings label {
+    display: block;
+    float: none;
+    width: 100%;
+    font-size: 1.6vw;
+    line-height: 1.3;
+    margin-bottom: 4px;
+}
+
+.instructorSettings .toggle-container {
+    /* The shared toggle positions its parts absolutely, so the container has
+       no height of its own; give it one so the text below does not overlap. */
+    float: none;
+    display: block;
+    height: 5vh;
+    width: 10vh;
+    margin: 6px 0 10px 0;
+}
+
+.instructorSettings .instructorSettingsNote {
+    line-height: 1.3;
+    margin: 0 2.5vw 1vh 2.5vw;
+    font-style: italic;
+}
+
+.instructorSettings .instructorField {
+    line-height: 1.6;
+    margin-top: 1vh;
+    margin-bottom: 1vh;
+}
+
+.instructorSettings .instructorField p {
+    font-size: 16px;
+    line-height: 1.3;
+    margin: 4px 0 8px 0;
+    text-align: left;
+}
+
+.sideMenuInner .instructorSettings textarea {
+    width: 92%;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 16px;
+    line-height: 1.35;
+    padding: 8px;
+    border: 1px solid #14223C;
+    border-radius: 6px;
+    resize: vertical;
+}
+
+.instructorSettings .wpmRow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    font-size: 16px;
+}
+
+.sideMenuInner .instructorSettings .wpmRow input {
+    width: 5em;
+    padding: 4px 6px;
+    border: 1px solid #14223C;
+    border-radius: 6px;
+    font-size: 16px;
+}
+
+.instructorSettings .small-button {
+    font-size: 14px;
+    padding: 4px 12px;
+    margin-top: 6px;
+    line-height: 1.4;
+}
+
+.instructorSettings .instructorStatus {
+    margin: 1vh 2.5vw;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 16px;
+    line-height: 1.3;
+}
+
+.instructorSettings .instructorStatus.saved {
+    background: #dff3e6;
+    color: #14532d;
+}
+
+.instructorSettings .instructorStatus.error {
+    background: #fde2e1;
+    color: #7f1d1d;
+}

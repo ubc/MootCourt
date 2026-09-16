@@ -3,6 +3,7 @@ import { Center, Html } from '@react-three/drei'
 import PropTypes from 'prop-types'
 import './LandingPage.css';
 import defaultData from '../general/default_settings.json';
+import InstructorSettingsMenu from './InstructorSettingsMenu';
 
 
 
@@ -52,6 +53,14 @@ function pressFeedback() {
 
 function pressBackToMenu() {
     resetDisplayedUI("About", "Main");
+}
+
+function pressInstructorSettings() {
+    resetDisplayedUI("Main", "InstructorSettings");
+}
+
+function pressBackFromInstructorSettings() {
+    resetDisplayedUI("InstructorSettings", "Main");
 }
 
 function pressBackFromDifficulty() {
@@ -146,6 +155,10 @@ function LandingPageMenu({updateAppState, updateConfig, config}) {
     const setStopPresentation = () => {
         let checkBox = document.getElementById("setStopPresentation") as HTMLInputElement
         updateConfig({...config, stopPresentation: checkBox.checked})
+    }
+
+    const setShowPace = (e) => {
+        updateConfig({...config, showPace: e.target.checked})
     }
 
     const setIntroductionMinutes = (e) => {
@@ -274,7 +287,10 @@ function LandingPageMenu({updateAppState, updateConfig, config}) {
                         <button className="button wide-button buttonFeedback" type="button" onClick={(event) => pressFeedback()}>
                             <a className="button wide-button buttonFeedback" href="https://ubc.ca1.qualtrics.com/jfe/form/SV_2l3a4rVJhxIcKeq" target="_blank">GIVE FEEDBACK</a>
                         </button>
-                        <button className="button" type="button" onClick={(event) => pressTroubleShooting()}> Need Help? </button>
+                        <div className="menuSecondaryRow">
+                            <button className="button menuSecondaryButton" type="button" onClick={(event) => pressTroubleShooting()}> Need Help? </button>
+                            <button className="button menuSecondaryButton" type="button" id="OpenInstructorSettings" onClick={(event) => pressInstructorSettings()}> Instructor Settings </button>
+                        </div>
                         
 
                     </div>
@@ -447,6 +463,15 @@ function LandingPageMenu({updateAppState, updateConfig, config}) {
                         <div className="FieldDescription"></div>
                             <p style={{ fontSize: '18px', marginTop: '5px', lineHeight: '1', textAlign: 'left' }}>Turn OFF to extend time, turn ON to end on the set duration of the timer </p>
                     </div>
+                    <div className="formitem">
+                        <label htmlFor="ShowPace">Speaking pace</label>
+                        <div className="toggle-container">
+                            <input name="ShowPace" type="checkbox" checked={Boolean(config.showPace)} id="setShowPace" onChange={setShowPace}/>
+                            <div className="slider round"></div>
+                        </div>
+                        <div className="FieldDescription"></div>
+                            <p style={{ fontSize: '18px', marginTop: '5px', lineHeight: '1', textAlign: 'left' }}>Show your words per minute in the courtroom, updated after each turn </p>
+                    </div>
                     <div className="formitem " >
                         <label htmlFor="IntroductionTime" style={{ marginBottom: '-15px' }}>Introduction time</label>
                         <div className="FieldDescription"></div>
@@ -466,6 +491,13 @@ function LandingPageMenu({updateAppState, updateConfig, config}) {
                     <button className="button large-button" type="button" onClick={startApp}>Start Mooting!</button>
                 </div>
             </div>
+        </div>}
+
+        {<div className="stayhidden" id="InstructorSettings">
+            <InstructorSettingsMenu
+                onBack={pressBackFromInstructorSettings}
+                onSaved={settings => updateConfig({...config, showPace: settings.showPaceByDefault, wpm: settings.wpm})}
+            />
         </div>}
 
         {<div className="stayhidden" id="About">

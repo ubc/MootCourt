@@ -39,6 +39,7 @@ export async function startPracticeSession(config: any): Promise<void> {
                     questionInterval: config?.questionInterval,
                     introductionTime: config?.introductionTime,
                     isInteliJudge: config?.isInteliJudge,
+                    showPace: config?.showPace,
                     setRandomized: config?.setRandomized,
                     setDelay: config?.setDelay,
                 },
