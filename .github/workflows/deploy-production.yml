@@ -1,5 +1,13 @@
 # A production release. Deliberately manual: nothing here runs on a push.
 #
+# THE MASTER COPY OF THIS FILE LIVES IN tlef-ansible, at
+# roles/deploy_agent/workflow/deploy-production.yml, beside the deploy agent it
+# has to agree with and the tests that hold the two together. Every application
+# repository carries a copy with its own domain on the `url:` line and nothing
+# else changed. Change the master, then copy it out to every repository; step
+# 3.6 of docs/runbooks/github-deploys-onboarding.md shows how, and how to check
+# a repository's copy still matches.
+#
 # This job never touches a server and cannot -- a GitHub-hosted runner cannot
 # reach these hosts at all (verified 2026-09-11: port 22 times out from a
 # runner). All it does is record that a release was asked for. An agent on the
@@ -20,7 +28,10 @@ concurrency:
 jobs:
     deploy:
         runs-on: ubuntu-latest
-        timeout-minutes: 45
+        # Six hours, GitHub's ceiling for a hosted job. Not an estimate of how
+        # long a deploy takes -- see the wait step -- only the point at which a
+        # control host that never answered is given up on.
+        timeout-minutes: 360
         environment:
             name: production
             url: https://mootcourt.apps.ltic.ubc.ca
@@ -63,8 +74,9 @@ jobs:
                   #     environment gates workflow JOBS, not that API, so the
                   #     main-only guard above is advisory as far as the API is
                   #     concerned.
-                  # Keep this string in step with DEPLOY_TASK in
-                  # roles/deploy_agent/files/tlef-deploy-poll (tlef-ansible).
+                  # It must equal DEPLOY_TASK in
+                  # roles/deploy_agent/files/tlef-deploy-poll; tlef-ansible's
+                  # tests/test_app_workflow.py fails if the master copy drifts.
                   payload=$(printf '{"ref":"%s","task":"tlef-deploy","environment":"production","auto_merge":false,"required_contexts":[],"description":"Requested by %s"}' \
                       "$GITHUB_SHA" "$GITHUB_ACTOR")
                   id=$(printf '%s' "$payload" \
@@ -83,9 +95,25 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   DEPLOYMENT_ID: ${{ steps.request.outputs.id }}
               run: |
+                  # This step decides nothing about how long a deploy may take.
+                  # The control host does, and it always answers: a request it
+                  # picks up ends in success, failure (including its own
+                  # timeout) or error (abandoned), and one it does not pick up
+                  # in time is closed as expired. So this waits for that
+                  # verdict, and the control host's timeouts can grow -- as
+                  # they do when an application moves behind a load balancer --
+                  # without this file changing in every repository.
+                  #
+                  # The deadline is only for a control host that is down and
+                  # cannot answer at all. It sits 15 minutes under the job's
+                  # timeout-minutes, so this step fails on its own and the
+                  # withdraw step below still gets to run.
+                  #
                   # The agent polls on a 60s timer, so the first minute of this
                   # is expected silence rather than a hang.
-                  deadline=$(( $(date +%s) + 2400 ))
+                  started=$(date +%s)
+                  deadline=$(( started + 345 * 60 ))
+                  next_note=$(( started + 600 ))
                   last=''
                   api="repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses"
                   while [ "$(date +%s)" -lt "$deadline" ]; do
@@ -131,12 +159,20 @@ jobs:
                               echo "::error::Deploy reported ${state}: ${description}"
                               exit 1 ;;
                           inactive)
-                              echo "::error::Superseded by a newer request."
+                              # Expired, superseded by a newer press, or
+                              # withdrawn. The description says which, and it
+                              # is all the person who pressed has to go on.
+                              echo "::error::Not deployed: ${description}"
                               exit 1 ;;
                       esac
+                      now=$(date +%s)
+                      if [ "$now" -ge "$next_note" ]; then
+                          echo "Still ${state} after $(( (now - started) / 60 )) minutes. If the control host has not picked it up, it closes it as expired rather than deploying it late."
+                          next_note=$(( now + 600 ))
+                      fi
                       sleep 15
                   done
-                  echo "::error::No terminal status within 40 minutes. Check the deploy agent on the control host."
+                  echo "::error::No answer from the control host in almost six hours, so it is probably down. Deploy by hand if this cannot wait; the next step withdraws the request if it was never picked up."
                   exit 1
 
             - name: Withdraw the request if the control host never picked it up
